@@ -107,6 +107,23 @@ const walk = async (
 const reaches = <T>(root: Root, find: () => T | undefined) =>
   untilHolds(root.service, find);
 
+const setBaseline = (root: Root, ids: string[]) =>
+  root.io.files.writeFile(
+    `${root.repository}/.recognizer/baselines/violations.json`,
+    JSON.stringify({
+      schema_version: 1,
+      violations: ids.map((id) => ({ id })),
+    }),
+  );
+
+const entry = (id: string) => `\u0000id\u0000${id}`;
+
+const baselines = (root: Root) =>
+  root.view.explorers.flatMap((one) => one.loads.map((load) => load.baseline));
+
+const loadsReach = (root: Root, count: number) => () =>
+  baselines(root).length >= count ? true : undefined;
+
 describe("createRescanner", () => {
   it("shows only the started sensor as running, the rest waiting, and holds a failure until the sensor next finishes ok", async () => {
     const alpha = gated();
@@ -477,5 +494,212 @@ describe("createRescanner", () => {
         /adopt_scan failed/.test(one.input.text),
       ),
     ).toBe(true);
+  });
+
+  it("refreshes the sensors without scanning, carrying the state", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+    const explorers = root.view.explorers.length;
+
+    setBaseline(root, ["p0"]);
+    host.refresh();
+    await reaches(root, loadsReach(root, 2));
+
+    expect(root.service.started.length).toBe(opened);
+    expect(root.view.explorers.length).toBe(explorers);
+    expect(baselines(root)).toEqual([null, [entry("p0")]]);
+  });
+
+  it("replaces once and skips a refresh whose sensed data equals the last replaced", async () => {
+    const { root, host } = await begin({ alpha: {} });
+
+    for (let turn = 0; turn < 5; turn++) {
+      host.refresh();
+      await root.service.signal(100);
+    }
+
+    expect(root.view.explorers.length).toBe(1);
+    expect(root.view.explorer()?.loads).toHaveLength(1);
+    expect(root.view.explorer()?.carries).toBe(0);
+  });
+
+  it("replaces again when a refresh senses changed data", async () => {
+    const { root, host } = await begin({ alpha: {} });
+
+    setBaseline(root, ["p0"]);
+    host.refresh();
+    await reaches(root, loadsReach(root, 2));
+    setBaseline(root, ["p1"]);
+    host.refresh();
+    await reaches(root, loadsReach(root, 3));
+
+    expect(baselines(root)).toEqual([null, [entry("p0")], [entry("p1")]]);
+  });
+
+  it("compares a refresh with the data a scan run replaced", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await root.service.signal(200);
+
+    const loads = root.view.explorers.flatMap((one) => one.loads).length;
+
+    host.refresh();
+    await root.service.signal(200);
+
+    expect(root.view.explorers.flatMap((one) => one.loads)).toHaveLength(loads);
+  });
+
+  it("updates in place when only sensor results change, never replacing after the first scan", async () => {
+    const { root, host } = await begin({ alpha: {} });
+
+    for (const [turn, ids] of [["p0"], ["p1"], ["p2"]].entries()) {
+      setBaseline(root, ids);
+      host.refresh();
+      await reaches(root, loadsReach(root, turn + 2));
+    }
+
+    expect(root.view.explorers.length).toBe(1);
+    expect(root.view.explorer()?.carries).toBe(0);
+    expect(baselines(root)).toEqual([
+      null,
+      [entry("p0")],
+      [entry("p1")],
+      [entry("p2")],
+    ]);
+  });
+
+  it("updates in place from a sensor-only scan run after the first scan", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await root.service.signal(200);
+
+    expect(root.view.explorers.length).toBe(1);
+    expect(root.view.explorer()?.carries).toBe(0);
+    expect(root.view.explorer()?.loads.length).toBeGreaterThan(1);
+  });
+
+  it("replaces with the carried value when the loaded structure changes", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+
+    root.io.files.writeFile(
+      `${root.repository}/api/src/extra.ts`,
+      "export const extra = 1;\n",
+    );
+    host.run(null);
+    await settledRun(root, opened);
+    await reaches(root, () =>
+      root.view.explorers.length === 2 ? true : undefined,
+    );
+
+    expect(root.view.explorers[0]?.carries).toBe(1);
+    expect(root.view.explorers[1]?.carries).toBe(0);
+  });
+
+  it("falls back to replace when update returns false", async () => {
+    const { root } = await begin({ alpha: {} });
+
+    root.assignFolder();
+    await reaches(root, () =>
+      root.view.explorers.length === 2 ? true : undefined,
+    );
+
+    expect(root.view.explorers[0]?.carries).toBe(0);
+    expect(root.view.explorers[1]?.carries).toBe(0);
+    expect(root.view.explorers[1]?.loads).toHaveLength(1);
+  });
+
+  it("builds one explorer, loaded once and carrying nothing, from the open scan", async () => {
+    const { root } = await begin({ alpha: {} });
+
+    expect(root.view.explorers.length).toBe(1);
+    expect(root.view.explorer()?.loads).toHaveLength(1);
+    expect(root.view.explorer()?.carries).toBe(0);
+  });
+
+  it("refreshes nothing when there is nothing loaded", async () => {
+    const { config, programs } = sensorsOf({ alpha: {} });
+    const root = await inProcessAppRoot({
+      config,
+      programs,
+      files: sampleFiles(),
+      ticks: FRESH,
+      folderKnown: false,
+    });
+
+    await root.service.signal(1000);
+    setBaseline(root, ["p0"]);
+    await root.service.signal(1000);
+
+    expect(root.view.explorers).toHaveLength(0);
+  });
+
+  it("does not present a refresh as running and starts no scan or sensor run", async () => {
+    const hold = new Gate();
+    const { root, opened, host } = await begin(
+      { alpha: {} },
+      { holds: { "inputs.read": hold } },
+    );
+
+    hold.hold();
+    setBaseline(root, ["p0"]);
+    host.refresh();
+    await root.service.signal(100);
+
+    expect(host.running()).toBe(false);
+    expect(host.external?.()).toBe(false);
+    hold.open();
+    await reaches(root, loadsReach(root, 2));
+
+    expect(host.running()).toBe(false);
+    expect(root.service.started.length).toBe(opened);
+  });
+
+  it("a_refresh_is_a_render_of_the_newest_revision", async () => {
+    const hold = new Gate();
+    const { root, host } = await begin(
+      { alpha: {} },
+      { holds: { "inputs.read": hold } },
+    );
+
+    hold.hold();
+    setBaseline(root, ["revision-1"]);
+    host.refresh();
+    await root.service.signal(100);
+    setBaseline(root, ["revision-2"]);
+    host.refresh();
+    await root.service.signal(100);
+    hold.open();
+    await reaches(root, () =>
+      baselines(root).at(-1)?.[0] === entry("revision-2") ? true : undefined,
+    );
+
+    expect(baselines(root).at(-1)).toEqual([entry("revision-2")]);
+  });
+
+  it("renders a refresh during a run from the newest revision, deferring nothing", async () => {
+    const hold = new Gate();
+    const { root, opened, host } = await begin({ alpha: { gate: hold } });
+
+    hold.hold();
+    host.run(null);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+    setBaseline(root, ["during"]);
+    host.refresh();
+    await reaches(root, () =>
+      baselines(root).some((one) => one?.[0] === entry("during"))
+        ? true
+        : undefined,
+    );
+    hold.open();
+    await settledRun(root, opened);
+
+    expect(baselines(root).some((one) => one?.[0] === entry("during"))).toBe(
+      true,
+    );
   });
 });
