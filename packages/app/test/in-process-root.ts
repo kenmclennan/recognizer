@@ -20,6 +20,8 @@ import {
 
 export const REPOSITORY = "/app-root-repository";
 
+export type DeliveryKind = "run" | "outcome";
+
 export type InProcessRootOptions = {
   stamped?: boolean;
   config?: string;
@@ -38,6 +40,7 @@ export type InProcessRootOptions = {
     confirmAboveUsd: number;
   };
   uncommitted?: boolean;
+  held?: DeliveryKind[];
   record?: (
     command: string,
     args: Record<string, unknown>,
@@ -180,24 +183,64 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
   let forwarded = 0;
   let delivered = 0;
 
+  const holding = new Set<DeliveryKind>(options.held ?? []);
+  const queued: ServeLine[] = [];
+
+  const kindOf = (line: ServeLine): DeliveryKind | null =>
+    "outcome" in line ? "outcome" : "run" in line ? "run" : null;
+
+  const dispatch = (line: ServeLine) => {
+    delivered += 1;
+
+    for (const handler of bridge.listeners.get("core-event") ?? []) {
+      handler({ payload: line });
+    }
+  };
+
   const flush = () => {
     const before = delivered;
 
     for (; forwarded < root.lines.length; forwarded += 1) {
       const line = root.lines[forwarded] as ServeLine;
 
-      if (typeof line.id !== "number") {
-        delivered += 1;
+      if (typeof line.id === "number") {
+        continue;
+      }
 
-        for (const handler of bridge.listeners.get("core-event") ?? []) {
-          handler({ payload: line });
-        }
+      const kind = kindOf(line);
+
+      if (kind !== null && holding.has(kind)) {
+        queued.push(line);
+      } else {
+        dispatch(line);
       }
     }
 
     if (delivered > before) {
       batches.push(delivered);
     }
+  };
+
+  const delivery = {
+    hold: (kind: DeliveryKind) => {
+      holding.add(kind);
+
+      return {
+        release: () => {
+          holding.delete(kind);
+
+          for (const line of queued.splice(0)) {
+            const held = kindOf(line);
+
+            if (held !== null && holding.has(held)) {
+              queued.push(line);
+            } else {
+              dispatch(line);
+            }
+          }
+        },
+      };
+    },
   };
 
   const service = {
@@ -221,6 +264,8 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
   };
 
   cleanups.push(() => {
+    holding.clear();
+    queued.length = 0;
     void root.close();
   });
 
@@ -332,6 +377,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     app,
     view,
     assignFolder,
+    delivery,
     service,
     ticksWritten,
     repository: REPOSITORY,

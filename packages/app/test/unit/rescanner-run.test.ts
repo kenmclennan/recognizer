@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   committedScan,
   event,
@@ -144,6 +144,73 @@ async function begin(scripts: SensorsScript, options: Begin = {}) {
   }
 
   return { root, opened, host };
+}
+
+const plannedFor = async (
+  root: Root,
+  sense: string[],
+  label: string,
+  progress: string,
+  names: boolean,
+): Promise<PlannedRun> => {
+  const view = await root.service.call("scan.plan", {
+    repository: root.repository,
+    mode: "rescan",
+    ticks: {
+      describe: false,
+      analysis: false,
+      ticked: sense,
+      armed: [],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    },
+    scope: null,
+    changed: [],
+  });
+
+  return {
+    plan: (view as unknown as { ok: { intent: PlannedRun["plan"] } }).ok.intent,
+    dropped: [],
+    modules: 0,
+    idle: false,
+    label,
+    progress,
+    names,
+    work: {},
+  };
+};
+
+const changeSource = (root: Root) => {
+  root.io.files.writeFile(
+    `${root.repository}/api/src/extra.ts`,
+    "export const extra = 1;\n",
+  );
+  root.repositories.commitAll(root.repository, "more");
+};
+
+async function planned(
+  script: SensorsScript[string],
+  progress: string,
+): Promise<(string | null)[]> {
+  const gate = gated();
+  const { root, opened, host } = await begin({
+    alpha: { ...script, gate },
+  });
+  const plan = await plannedFor(root, ["alpha"], "Run alpha", progress, true);
+
+  host.run(null, plan);
+  await reaches(root, () =>
+    host.runState().started === "alpha" ? true : undefined,
+  );
+  await root.service.signal(500);
+
+  const shown = root.view.progress.filter((text) => text?.includes("Alpha"));
+
+  gate.open();
+  await settledRun(root, opened);
+
+  return shown;
 }
 
 const posts = (root: Root) =>
@@ -1523,5 +1590,686 @@ describe("createRescanner", () => {
         ),
       ).toEqual([]);
     });
+  });
+
+  it("re-reads findings and updates the running state as each sensor reports", async () => {
+    const alpha = gated();
+    const beta = gated();
+    const { root, opened, host } = await begin({
+      alpha: { gate: alpha, fails: true },
+      beta: { gate: beta },
+    });
+    const loads = root.view.explorer()?.loads.length ?? 0;
+    const seen: string[][] = [];
+
+    host.run(null);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+    seen.push(host.runState().running);
+    alpha.open();
+    await reaches(root, () =>
+      host.runState().started === "beta" ? true : undefined,
+    );
+    seen.push(host.runState().running);
+    beta.open();
+    await settledRun(root, opened);
+
+    expect(seen).toEqual([["alpha", "beta"], ["beta"]]);
+    expect(Object.keys(host.runState().failures)).toEqual(["alpha"]);
+    expect(Object.keys(host.runState().ranAt)).toContain("alpha");
+    expect(host.runState().running).toEqual([]);
+    expect(root.view.explorer()?.loads.length ?? 0).toBeGreaterThan(loads);
+  });
+
+  it("opens the explorer from the cache when the service's outcome arrives before any run record", async () => {
+    const { config, programs } = sensorsOf({ alpha: {} });
+    const root = await inProcessAppRoot({
+      config,
+      programs,
+      files: sampleFiles(),
+      ticks: FRESH,
+      held: ["run"],
+    });
+
+    try {
+      await reaches(root, () => root.view.explorer() ?? undefined);
+      await root.service.signal(500);
+
+      expect(root.service.started.length).toBeGreaterThan(0);
+      expect(root.view.explorers).toHaveLength(1);
+      expect(root.view.explorer()?.host.running()).toBe(false);
+    } finally {
+      root.delivery.hold("run").release();
+    }
+  });
+
+  it("adopts the finished scan into an open explorer when the service's outcome arrives before any run record", async () => {
+    const adopted: string[] = [];
+    const { root, opened, host } = await begin(
+      { alpha: {} },
+      {
+        record: (command) => {
+          if (command === "adopt_scan") {
+            adopted.push(command);
+          }
+        },
+      },
+    );
+    const hold = root.delivery.hold("run");
+    const loads = root.view.explorer()?.loads.length ?? 0;
+    const adoptions = adopted.length;
+
+    try {
+      changeSource(root);
+      host.run(null);
+      await settledRun(root, opened);
+      await root.service.signal(500);
+
+      expect(root.service.started.length - opened).toBe(1);
+      expect(adopted.length - adoptions).toBe(1);
+      expect(root.view.explorers).toHaveLength(2);
+      expect(host.running()).toBe(false);
+      expect(root.view.explorer()?.loads.length ?? 0).toBeGreaterThanOrEqual(
+        loads,
+      );
+    } finally {
+      hold.release();
+    }
+  });
+
+  it("attaches Open log to a failed describe message once the run ends with a log", async () => {
+    const opened: string[] = [];
+    const gate = gated();
+    const { root } = await begin(
+      { alpha: { gate } },
+      {
+        describer: describerFailing({ "api/src/place.ts": "no" }),
+        ticks: { ...FRESH, describe: true },
+        record: (command, args) => {
+          if (command === "open_in_editor") {
+            opened.push(String(args.relative));
+          }
+        },
+      },
+    );
+    const other = startExternal(root, {
+      describe: "stale",
+      sense: ["alpha"],
+      modules: ["api/src/place.ts"],
+    });
+
+    await untilTogether(root, other, postedText(root, /^Scan started/));
+    gate.open();
+    await untilTogether(
+      root,
+      other,
+      postedText(root, /^Scan (complete|failed)/),
+    );
+    await root.service.signal(500);
+
+    const result = posts(root).filter((one) => one.input.kind !== "error");
+
+    expect(result.map((one) => one.input.text)).toEqual([
+      "Describe wrote 0 lines, 1 files failed.",
+    ]);
+    expect(result[0]?.input.action?.label).toBe("Show");
+    expect(root.view.tray.attached.map((one) => one.id)).toEqual([
+      result[0]?.id,
+    ]);
+    expect(root.view.tray.attached[0]?.extra.label).toBe("Open log");
+
+    root.view.tray.attached[0]?.extra.run();
+    await root.service.signal(100);
+
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatch(/^\.recognizer\/cache\/log\/.+\.json$/);
+    expect(root.view.progress.at(-1)).toBeNull();
+  });
+
+  it("attaches Open log once to a mixed run's only failure, and posts an extract failure", async () => {
+    const gate = gated();
+    const mode: Mode = { scanner: "ok" };
+    const { root } = await begin({ alpha: { gate, fails: true } }, { mode });
+
+    changeSource(root);
+    mode.scanner = "bad-flag";
+
+    const other = startExternal(root, { describe: false, sense: ["alpha"] });
+
+    await untilTogether(root, other, postedText(root, /^Scan started/));
+    gate.open();
+    await other.advance(2000);
+    await root.service.signal(2000);
+
+    const failure = posts(root).find((one) =>
+      one.input.text.startsWith("typescript failed"),
+    );
+
+    expect(failure?.input.action).toBeUndefined();
+    expect(root.view.tray.attached.map((one) => one.id)).toEqual([failure?.id]);
+    expect(root.view.tray.attached[0]?.extra.label).toBe("Open log");
+  });
+
+  it("settles once extraction has run even when no later phase line arrives", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+
+    host.run(null, OPEN_RUN);
+    await settledRun(root, opened);
+
+    expect(root.service.started[opened]).toMatchObject({ sense: [] });
+    expect(root.view.explorer()).not.toBeNull();
+    expect(host.running()).toBe(false);
+    expect(root.view.progress.at(-1)).toBeNull();
+  });
+
+  it("joins the run this window has in flight instead of starting a second", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+
+    host.run(null);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+    host.run(null);
+    await root.service.signal(100);
+    gate.open();
+    await settledRun(root, opened);
+
+    expect(root.service.started.length - opened).toBe(1);
+  });
+
+  it("hands the port the planned run and prefixes its progress line with the mode", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const planned = await plannedFor(
+      root,
+      ["alpha"],
+      "Rescan 1 file",
+      "Rescanning 1 file…",
+      false,
+    );
+
+    host.run(null, planned);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+
+    const shown = root.view.progress.filter((text) => text !== null);
+
+    gate.open();
+    await settledRun(root, opened);
+
+    expect(root.service.started[opened]).toMatchObject({
+      sense: ["alpha"],
+    });
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.every((text) => text?.startsWith("Rescanning 1 file… "))).toBe(
+      true,
+    );
+  });
+
+  it("names a running plugin once when the planned heading also reads Running", async () => {
+    const running = await planned(
+      { before: [event({ event: "start", total: 1, unit: "suites" })] },
+      "Running Alpha\u2026",
+    );
+
+    expect(running.length).toBeGreaterThan(0);
+    expect(
+      running.some((text) => text?.startsWith("Running Alpha\u2026 ")),
+    ).toBe(true);
+    expect(
+      running.some((text) => (text?.split("Running Alpha").length ?? 0) > 2),
+    ).toBe(false);
+  });
+
+  it("names a running plugin once when its live line reads the plugin name then a count", async () => {
+    const running = await planned(
+      { before: [event({ event: "start", total: 1, unit: "suites" })] },
+      "Running Alpha\u2026",
+    );
+
+    expect(running).toContain("Alpha: 0 of 1 suites");
+    expect(running.some((text) => text?.split("Alpha").length !== 2)).toBe(
+      false,
+    );
+  });
+
+  it("names a running plugin once when the live line's wording changes", async () => {
+    const running = await planned(
+      {
+        before: [
+          event({ event: "start", total: 9, unit: "widgets" }),
+          event({ event: "progress", done: 2, total: 9, unit: "widgets" }),
+        ],
+      },
+      "Running Alpha\u2026",
+    );
+
+    expect(running).toContain("Alpha: 2 of 9 widgets");
+    expect(running.some((text) => text?.split("Alpha").length !== 2)).toBe(
+      false,
+    );
+  });
+});
+
+const blockedPosts = (root: Root) =>
+  root.view.tray.posted.filter((one) => /exited non-zero/.test(one.input.text));
+
+const GAP_LINE = "coverage and pytest are not installed";
+
+const gapOf = (line: string) => ({
+  code: "environment",
+  suite: null,
+  line,
+});
+
+describe("the preflight flow", () => {
+  const gapped = (line: string) => [gapOf(line)];
+
+  it("shows the checking card from Scan until the record arrives", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const hold = root.delivery.hold("run");
+    const seen: boolean[] = [];
+
+    try {
+      host.run(null);
+      await reaches(root, () =>
+        root.service.started.length > opened ? true : undefined,
+      );
+      seen.push(host.runView?.().starting !== null);
+      await root.service.signal(300);
+      seen.push(host.runView?.().starting !== null);
+
+      expect(seen).toEqual([true, true]);
+    } finally {
+      hold.release();
+    }
+
+    await root.service.signal(500);
+
+    expect(host.runView?.().starting).toBeNull();
+    expect(host.runView?.().run?.id).toEqual(expect.any(String));
+
+    gate.open();
+    await settledRun(root, opened);
+  });
+
+  it("scan start holds the wall time the scan began at while the clock moves on", async () => {
+    const gate = gated();
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const hold = root.delivery.hold("run");
+    const seen: (number | undefined)[] = [];
+
+    try {
+      vi.setSystemTime(1_000_000);
+      host.run(null);
+      await reaches(root, () =>
+        root.service.started.length > opened ? true : undefined,
+      );
+      seen.push(host.runView?.().starting?.at);
+      vi.setSystemTime(1_000_000 + 8 * 3_600_000);
+      await root.service.signal(300);
+      seen.push(host.runView?.().starting?.at);
+    } finally {
+      vi.useRealTimers();
+      hold.release();
+    }
+
+    gate.open();
+    await settledRun(root, opened);
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toBe(1_000_000);
+    expect(seen[1]).toBe(1_000_000);
+  });
+
+  it("shows the gaps of the refused run, with no blocked message", async () => {
+    const { root, opened, host } = await begin({
+      alpha: { gaps: gapped(GAP_LINE) },
+    });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await root.service.signal(1500);
+
+    expect(host.runView?.().run?.state).toBe("refused");
+    expect(host.runView?.().run?.gaps.map((gap) => gap.line)).toEqual([
+      GAP_LINE,
+    ]);
+    expect(host.runView?.().starting).toBeNull();
+    expect(root.view.messages).toEqual([]);
+    expect(blockedPosts(root)).toEqual([]);
+    expect(host.running()).toBe(false);
+  });
+
+  it("keeps a ticked sensor ticked through a refusal and a finished Scan, and both Scans include it", async () => {
+    const refuse = { on: true };
+    const { root, opened, host } = await begin({
+      mut: {
+        runsTests: true,
+        suites: BOTH_SUITES,
+        gaps: () => (refuse.on ? gapped(GAP_LINE) : []),
+      },
+      alpha: {},
+    });
+
+    host.setTicks({
+      ...host.ticks(),
+      armed: ["mut"],
+      onlyView: false,
+      suites: SUITE_TICKS,
+    });
+    await root.service.signal(10);
+    host.run(null);
+    await settledRun(root, opened);
+    await root.service.signal(1500);
+
+    expect(host.runView?.().run?.state).toBe("refused");
+    expect(host.ticks().armed).toEqual(["mut"]);
+
+    refuse.on = false;
+    host.run(null);
+    await settledRun(root, opened + 1);
+
+    expect(root.service.started[opened + 1]?.sense).toContain("mut");
+    expect(host.ticks().armed).toEqual(["mut"]);
+
+    host.run(null);
+    await settledRun(root, opened + 2);
+
+    expect(root.service.started[opened + 2]?.sense).toContain("mut");
+  });
+
+  describe.each([
+    { label: "C.R.A.P. only", ticked: ["crap"] },
+    { label: "Mutation only", ticked: ["mut"] },
+    { label: "C.R.A.P. and Mutation", ticked: ["crap", "mut"] },
+    { label: "none", ticked: [] as string[] },
+  ])("keeps the ticks as set after a Scan ends", ({ label, ticked }) => {
+    it.each([{ end: "finished" }, { end: "stopped" }])(
+      `with ${label} when it $end`,
+      async ({ end }) => {
+        const gate = gated();
+        const { root, opened, host } = await begin({
+          alpha: { gate },
+          crap: { runsTests: true },
+          mut: { runsTests: true },
+        });
+
+        host.setTicks({ ...host.ticks(), armed: ticked });
+        await root.service.signal(10);
+
+        expect(host.ticks().armed).toEqual(ticked);
+
+        for (const name of ticked) {
+          expect(root.ticksWritten.at(-1)?.ticked).toContain(name);
+        }
+
+        host.run(null);
+
+        if (end === "stopped") {
+          await reaches(root, () =>
+            host.runState().started === "alpha" ? true : undefined,
+          );
+          expect(host.runState().running).toContain("alpha");
+          host.stop();
+        } else {
+          gate.open();
+        }
+
+        await settledRun(root, opened);
+
+        expect(host.ticks().armed).toEqual(ticked);
+        expect(
+          ((root.ticksWritten.at(-1)?.ticked as string[]) ?? []).filter(
+            (name) => ["crap", "mut"].includes(name),
+          ),
+        ).toEqual(ticked);
+      },
+    );
+  });
+
+  it("restores a tests-running sensor tick from the stored list", async () => {
+    const scripts: SensorsScript = { alpha: {}, crap: { runsTests: true } };
+    const first = await begin(scripts);
+
+    first.host.setTicks({
+      ...first.host.ticks(),
+      ticked: ["alpha"],
+      armed: ["crap"],
+    });
+    await first.root.service.signal(10);
+
+    const written = first.root.ticksWritten.at(-1);
+    const second = await begin(scripts, {
+      ticks: { ...FRESH, ...written, remembered: true },
+    });
+
+    await second.root.service.signal(100);
+
+    expect(written?.ticked).toEqual(["alpha", "crap"]);
+    expect(second.host.ticks().armed).toEqual(["crap"]);
+    expect(second.host.ticks().ticked).toEqual(["alpha"]);
+  });
+
+  it("splits a stored list into plain, armed and unregistered names", async () => {
+    const { root, host } = await begin(
+      { alpha: {}, crap: { runsTests: true } },
+      {
+        ticks: {
+          ...FRESH,
+          ticked: ["alpha", "crap", "ghost"],
+          remembered: true,
+        },
+      },
+    );
+
+    await root.service.signal(100);
+
+    expect(host.ticks().ticked).toEqual(["alpha", "ghost"]);
+    expect(host.ticks().armed).toEqual(["crap"]);
+  });
+
+  it("applies the fresh sensor results before the finished state shows", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const explorer = root.view.explorer();
+    const atUpdate: (string | null)[] = [];
+
+    if (explorer === null) {
+      throw new Error("no explorer after open");
+    }
+
+    const update = explorer.update.bind(explorer);
+
+    explorer.update = (next) => {
+      atUpdate.push(root.view.progress.at(-1) ?? null);
+      update(next);
+    };
+
+    host.run(null);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+    gate.open();
+    await settledRun(root, opened);
+    await root.service.signal(500);
+
+    expect(atUpdate.length).toBeGreaterThan(0);
+    expect(atUpdate[0]).not.toBeNull();
+    expect(atUpdate.at(-1)).toBeNull();
+    expect(root.view.progress.at(-1)).toBeNull();
+  });
+
+  it("shows the stopped card with no gaps when the user stops the scan", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const hold = root.delivery.hold("run");
+
+    try {
+      host.run(null);
+      await reaches(root, () =>
+        root.service.started.length > opened ? true : undefined,
+      );
+
+      expect(host.runView?.().starting).not.toBeNull();
+
+      host.stop();
+      await root.service.signal(1500);
+    } finally {
+      hold.release();
+    }
+
+    await settledRun(root, opened);
+    await root.service.signal(1500);
+
+    expect(host.runView?.().starting).toBeNull();
+    expect(host.runView?.().run?.state).toBe("stopped");
+    expect(host.runView?.().run?.gaps).toEqual([]);
+  });
+
+  it("shows only the running card, with no gaps, when a command-line scan follows a refused app attempt", async () => {
+    const refuse = { on: true };
+    const gate = gated();
+    const { root, opened, host } = await begin({
+      alpha: { gate, gaps: () => (refuse.on ? gapped(GAP_LINE) : []) },
+    });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await root.service.signal(1500);
+
+    const refusedId = host.runView?.().run?.id;
+
+    expect(host.runView?.().run?.gaps.map((gap) => gap.line)).toEqual([
+      GAP_LINE,
+    ]);
+
+    refuse.on = false;
+
+    const other = startExternal(root, { describe: false, sense: ["alpha"] });
+
+    await untilTogether(root, other, () =>
+      host.runView?.().run?.state === "running" ? true : undefined,
+    );
+
+    expect(host.runView?.().run).toMatchObject({
+      state: "running",
+      gaps: [],
+    });
+    expect(host.runView?.().run?.id).not.toBe(refusedId);
+    expect(host.external?.()).toBe(true);
+
+    gate.open();
+  });
+
+  describe("a refused open", () => {
+    const cachedFiles = {
+      ".recognizer/cache/scan.typescript.json": JSON.stringify(committedScan()),
+    };
+
+    const refusedOpen = async (
+      kind: "run" | "outcome",
+      files: Record<string, string>,
+    ) => {
+      const { config, programs } = sensorsOf({ alpha: {} });
+      const root = await inProcessAppRoot({
+        config,
+        programs,
+        uncommitted: true,
+        held: [kind],
+        files: { ...sampleFiles(), ...files },
+        ticks: FRESH,
+      });
+
+      await reaches(root, () =>
+        root.service.started.length > 0 ? true : undefined,
+      );
+      await root.service.signal(1500);
+      await Promise.resolve();
+      root.delivery.hold(kind).release();
+      await root.service.signal(1500);
+
+      return root;
+    };
+
+    const ways = {
+      "a gaps result": "run",
+      "a refused run record": "outcome",
+    } as const;
+
+    for (const [name, kind] of Object.entries(ways)) {
+      it(`adopts the cached scan and blocks nothing for ${name}`, async () => {
+        const root = await refusedOpen(kind, cachedFiles);
+
+        expect(root.view.explorers.length).toBe(1);
+        expect(root.view.messages).toEqual([]);
+      });
+    }
+
+    for (const [name, kind] of Object.entries(ways)) {
+      it(`changes nothing with an explorer open for ${name}`, async () => {
+        const { root, opened, host } = await begin({
+          alpha: { gaps: gapped(GAP_LINE) },
+        });
+        const explorers = root.view.explorers.length;
+        const loads = root.view.explorer()?.loads.length ?? 0;
+        const hold = root.delivery.hold(kind as "run" | "outcome");
+
+        try {
+          host.run(null);
+          await reaches(root, () =>
+            root.service.started.length > opened ? true : undefined,
+          );
+          await root.service.signal(1500);
+        } finally {
+          hold.release();
+        }
+
+        await settledRun(root, opened);
+        await root.service.signal(1500);
+
+        expect(root.service.started.length).toBeGreaterThan(opened);
+        expect(root.view.explorers.length).toBe(explorers);
+        expect(root.view.explorer()?.loads.length).toBe(loads);
+        expect(root.view.messages).toEqual([]);
+        expect(blockedPosts(root)).toEqual([]);
+      });
+    }
+  });
+});
+
+describe("the outcome comes from the run record", () => {
+  const failures = (root: Root) =>
+    root.view.tray.posted
+      .map((one) => one.input.text)
+      .filter((text) => text.startsWith("Scan failed"));
+
+  it("posts the failure text, not the blocked detail, when the record holds no summary", async () => {
+    const gate = gated();
+    const mode: Mode = { scanner: "ok" };
+    const { root } = await begin({ alpha: { gate } }, { mode });
+
+    changeSource(root);
+    mode.scanner = "bad-flag";
+
+    const other = startExternal(root, { describe: false, sense: ["alpha"] });
+
+    await untilTogether(root, other, postedText(root, /^Scan started/));
+    gate.open();
+    await untilTogether(root, other, postedText(root, /^Scan failed/));
+    await root.service.signal(500);
+
+    expect(failures(root)).toEqual([
+      "Scan failed - typescript: scanner-failed - exit 2: bad flag",
+    ]);
+    expect(root.view.messages).toEqual([]);
+    expect(blockedPosts(root)).toEqual([]);
   });
 });
