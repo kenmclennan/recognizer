@@ -18,7 +18,8 @@ export function findProgramGaps(
       return [];
     }
 
-    const result = ports.sensors.probe(program, ["--version"]);
+    const runs = sensor.command[0] ?? program;
+    const result = ports.sensors.probe(runs, ["--version"]);
     const strict = sensorNameOf([program]) !== undefined;
     const fine = strict
       ? result.started && result.status === 0
