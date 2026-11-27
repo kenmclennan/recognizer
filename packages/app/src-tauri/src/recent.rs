@@ -164,6 +164,30 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_recent_view_writers_to_different_folders_both_survive() {
+        let dir = TempDir::new().unwrap();
+        let repository = JsonRecentViews::new(recent_views_file_in(dir.path()));
+
+        std::thread::scope(|scope| {
+            for round in 0..40 {
+                let repository = &repository;
+
+                scope.spawn(move || {
+                    record_recent_view(repository, Path::new(&format!("/repo-{round}")), "v")
+                        .unwrap();
+                });
+            }
+        });
+
+        for round in 0..40 {
+            assert_eq!(
+                read_recent_views(&repository, Path::new(&format!("/repo-{round}"))),
+                ["v"]
+            );
+        }
+    }
+
+    #[test]
     fn an_unreadable_recent_views_file_reads_as_empty() {
         let dir = TempDir::new().unwrap();
         let file = recent_views_file_in(dir.path());

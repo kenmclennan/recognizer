@@ -76,6 +76,31 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_writers_to_different_folders_both_survive() {
+        let dir = TempDir::new().unwrap();
+        let repository = JsonScanTicks::new(ticks_file_in(dir.path()));
+
+        std::thread::scope(|scope| {
+            for round in 0..40 {
+                let repository = &repository;
+
+                scope.spawn(move || {
+                    write(
+                        repository,
+                        Path::new(&format!("/repo-{round}")),
+                        stored(true, &["a"]),
+                    )
+                    .unwrap();
+                });
+            }
+        });
+
+        for round in 0..40 {
+            assert!(read(&repository, Path::new(&format!("/repo-{round}"))).remembered);
+        }
+    }
+
+    #[test]
     fn the_file_sits_in_the_config_folder() {
         assert_eq!(
             ticks_file_in(Path::new("/cfg")),

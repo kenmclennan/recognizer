@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
@@ -77,11 +78,14 @@ pub fn read(repository: &dyn ScanTicksRepository, folder: &Path) -> ScanTicks {
     }
 }
 
+static TICKS_LOCK: Mutex<()> = Mutex::new(());
+
 pub fn write(
     repository: &dyn ScanTicksRepository,
     folder: &Path,
     ticks: StoredTicks,
 ) -> Result<(), String> {
+    let _guard = TICKS_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let mut all = repository.load();
 
     all.insert(folder.display().to_string(), ticks);
