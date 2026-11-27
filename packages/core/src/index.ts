@@ -186,6 +186,7 @@ export * from "./domain/configuration/core-settings.js";
 export * from "./domain/configuration/edit-step.js";
 export * from "./domain/configuration/key-value.js";
 export * from "./domain/configuration/policy-card.js";
+export * from "./domain/configuration/policy-document.js";
 export * from "./domain/configuration/policy-keys.js";
 export * from "./domain/configuration/policy-migration.js";
 export * from "./domain/configuration/policy-recommendation-prompt.js";

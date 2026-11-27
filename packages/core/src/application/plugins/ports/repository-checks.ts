@@ -1,6 +1,6 @@
 import type { InstalledPlugin } from "../../../domain/plugins/installed-plugin.js";
-import type { PolicyRule } from "../../../domain/policy-rule.js";
 import type { PublishedValues } from "../../configuration/inspect-config-document.js";
+import type { PolicyRead } from "../../configuration/policy-reading.js";
 import type { CachedScansState } from "../../shared/cached-scans-state.js";
 
 export type ConfigDocumentRead =
@@ -8,9 +8,7 @@ export type ConfigDocumentRead =
   | { kind: "unparseable"; message: string }
   | { kind: "parsed"; document: unknown };
 
-export type PolicyParse =
-  | { ok: true; rules: PolicyRule[] }
-  | { ok: false; messages: string[] };
+export type PolicyParse = PolicyRead;
 
 export type PolicyFacts =
   | { kind: "absent" }

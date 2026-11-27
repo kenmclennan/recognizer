@@ -218,6 +218,25 @@ describe("the CLI holds no plugin logic", () => {
     expect(/splitAtRun/.test(text)).toBe(true);
   });
 
+  it("keeps the policy translator to YAML parsing", () => {
+    const text = readFileSync(
+      join(SRC, "adapters/filesystem/policy-translator.ts"),
+      "utf8",
+    );
+
+    expect(text.includes("parsePolicy")).toBe(true);
+
+    for (const forbidden of [
+      "ALLOWED_KEYS",
+      "RETIRED",
+      "unknown key",
+      "must be a",
+      "isPlainObject",
+    ]) {
+      expect(text.includes(forbidden)).toBe(false);
+    }
+  });
+
   it("the matchers flag a known offending string and pass a clean one", () => {
     expect(namesShippedPlugin('const x = "crap";')).toBe(true);
     expect(namesShippedPlugin("export const SHIPPED_SENSORS = [];")).toBe(true);

@@ -71,3 +71,9 @@ export const RETIRED_POLICY_KEYS = [
   "uses",
   "foreign",
 ] as const;
+
+export function retiredPolicyKeysIn(keys: readonly string[]): string[] {
+  return keys.filter((key) =>
+    (RETIRED_POLICY_KEYS as readonly string[]).includes(key),
+  );
+}

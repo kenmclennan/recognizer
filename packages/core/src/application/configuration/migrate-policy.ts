@@ -1,10 +1,11 @@
+import { policyNotYamlMessage } from "../../domain/configuration/policy-document.js";
 import {
   isPlainObject,
   literalPaths,
   migratedRules,
   readRetired,
 } from "../../domain/configuration/policy-migration.js";
-import { RETIRED_POLICY_KEYS } from "../../domain/configuration/retired-keys.js";
+import { retiredPolicyKeysIn } from "../../domain/configuration/retired-keys.js";
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import type { PolicyRepository } from "../../domain/policy-repository.js";
 import { introducedProblems, MISSING_POLICY } from "./edit-key.js";
@@ -36,7 +37,7 @@ export function migratePolicy(
   if ("invalid" in read) {
     return {
       status: "refused",
-      messages: [`policy is not valid YAML: ${read.invalid}`],
+      messages: [policyNotYamlMessage(read.invalid)],
     };
   }
 
@@ -46,9 +47,7 @@ export function migratePolicy(
     return { status: "unchanged" };
   }
 
-  const present = Object.keys(raw).filter((key) =>
-    (RETIRED_POLICY_KEYS as readonly string[]).includes(key),
-  );
+  const present = retiredPolicyKeysIn(Object.keys(raw));
 
   if (present.length === 0) {
     return { status: "unchanged" };

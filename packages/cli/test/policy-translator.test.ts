@@ -26,6 +26,13 @@ function countsOf(path: string) {
   };
 }
 
+describe("policy translator YAML handling", () => {
+  it("refuses text that is not YAML", () => {
+    expect(messages("a: [")).toHaveLength(1);
+    expect(messages("a: [")[0]).toMatch(/^policy is not valid YAML: /);
+  });
+});
+
 describe("policy translator over real policies", () => {
   it("reads the hexagonal starter policy into 8 rules", () => {
     expect(countsOf("docs/policies/hexagonal.yaml")).toEqual({
