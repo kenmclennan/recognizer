@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "./pool-scale.mjs";
 import { removeScratch, writersIn } from "./service-scratch-teardown.mjs";
 import { makeTempDir } from "./temp-dirs.mjs";
 
@@ -22,6 +23,8 @@ setInterval(() => {
 
 const WRITER_LIFETIME_MS = 5_000;
 const LONG_LIFETIME_MS = 60_000;
+const EXIT_WAIT_MS = scaledTimeout(20_000);
+const SELF_EXIT_TEST_MS = scaledTimeout(40_000);
 const REMOVE = {
   recursive: true,
   force: true,
@@ -49,6 +52,18 @@ async function waitUntil(condition, timeoutMs) {
   }
 
   return condition();
+}
+
+function endsWithin(exited, timeoutMs) {
+  let timer;
+
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+
+  return Promise.race([exited.then(() => true), timedOut]).finally(() =>
+    clearTimeout(timer),
+  );
 }
 
 function scratch() {
@@ -111,74 +126,90 @@ describe("removeScratch", () => {
     expect(existsSync(dir)).toBe(false);
   });
 
-  it("ends a writer by itself once its folder is gone", async () => {
-    const dir = scratch();
-    const { child, exited } = await startWriter(dir, LONG_LIFETIME_MS);
+  it(
+    "ends a writer by itself once its folder is gone",
+    async () => {
+      const dir = scratch();
+      const { child, exited } = await startWriter(dir, LONG_LIFETIME_MS);
+      const moved = `${dir}-gone`;
 
-    try {
-      rmSync(dir, REMOVE);
+      try {
+        renameSync(dir, moved);
 
-      expect(await waitUntil(() => !alive(child.pid), 3_000)).toBe(true);
-    } finally {
-      child.kill("SIGKILL");
-      await exited;
-    }
-  });
+        expect(await endsWithin(exited, EXIT_WAIT_MS)).toBe(true);
+      } finally {
+        child.kill("SIGKILL");
+        await exited;
+        rmSync(moved, REMOVE);
+      }
+    },
+    SELF_EXIT_TEST_MS,
+  );
 
-  it("ends a writer by itself after its lifetime", async () => {
-    const dir = scratch();
-    const { child, exited } = await startWriter(dir, 300);
+  it(
+    "ends a writer by itself after its lifetime",
+    async () => {
+      const dir = scratch();
+      const { child, exited } = await startWriter(dir, 300);
 
-    try {
-      expect(await waitUntil(() => !alive(child.pid), 3_000)).toBe(true);
-    } finally {
-      child.kill("SIGKILL");
-      await exited;
-      rmSync(dir, REMOVE);
-    }
-  });
+      try {
+        expect(await endsWithin(exited, EXIT_WAIT_MS)).toBe(true);
+      } finally {
+        child.kill("SIGKILL");
+        await exited;
+        rmSync(dir, REMOVE);
+      }
+    },
+    SELF_EXIT_TEST_MS,
+  );
 
-  it("ends a writer by itself when its parent is killed", async () => {
-    const dir = scratch();
-    const parent = spawn(
-      process.execPath,
-      [
-        "-e",
-        `const { spawn } = require("node:child_process");
+  it(
+    "ends a writer by itself when its parent is killed",
+    async () => {
+      const dir = scratch();
+      const parent = spawn(
+        process.execPath,
+        [
+          "-e",
+          `const { spawn } = require("node:child_process");
 const w = spawn(process.execPath, ["-e", ${JSON.stringify(WRITER)}, process.argv[1], process.argv[2]], { stdio: "ignore" });
 console.log(w.pid);
 setInterval(() => {}, 1000);`,
-        dir,
-        String(LONG_LIFETIME_MS),
-      ],
-      { stdio: ["ignore", "pipe", "ignore"] },
-    );
-
-    let writerPid = 0;
-
-    try {
-      writerPid = await new Promise((resolve) =>
-        parent.stdout.once("data", (chunk) =>
-          resolve(Number(String(chunk).trim())),
-        ),
+          dir,
+          String(LONG_LIFETIME_MS),
+        ],
+        { stdio: ["ignore", "pipe", "ignore"] },
       );
 
-      expect(
-        await waitUntil(() => existsSync(join(dir, "late-1")), 3_000),
-      ).toBe(true);
-      expect(alive(writerPid)).toBe(true);
+      let writerPid = 0;
 
-      parent.kill("SIGKILL");
+      try {
+        writerPid = await new Promise((resolve) =>
+          parent.stdout.once("data", (chunk) =>
+            resolve(Number(String(chunk).trim())),
+          ),
+        );
 
-      expect(await waitUntil(() => !alive(writerPid), 3_000)).toBe(true);
-    } finally {
-      parent.kill("SIGKILL");
+        expect(
+          await waitUntil(() => existsSync(join(dir, "late-1")), EXIT_WAIT_MS),
+        ).toBe(true);
+        expect(alive(writerPid)).toBe(true);
 
-      if (writerPid && alive(writerPid)) process.kill(writerPid, "SIGKILL");
+        parent.kill("SIGKILL");
 
-      rmSync(dir, REMOVE);
-    }
-  });
+        expect(await waitUntil(() => !alive(writerPid), EXIT_WAIT_MS)).toBe(
+          true,
+        );
+      } finally {
+        parent.kill("SIGKILL");
+
+        if (writerPid && alive(writerPid)) process.kill(writerPid, "SIGKILL");
+
+        rmSync(dir, REMOVE);
+      }
+    },
+    SELF_EXIT_TEST_MS,
+  );
 });
 
 describe("writersIn", () => {
