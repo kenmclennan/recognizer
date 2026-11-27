@@ -21,6 +21,7 @@ export interface LockRecord {
 
 export class FakeScanLock implements ScanLock {
   startedAt = 0;
+  runId = "fake-run";
 
   readonly locks: LockRecord[] = [];
   private holder: LockRecord | null = null;
@@ -43,6 +44,7 @@ export class FakeScanLock implements ScanLock {
     };
     const lock: HeldLock = {
       startedAt: this.startedAt,
+      runId: this.runId,
       append: (event) => {
         record.events.push(event);
       },

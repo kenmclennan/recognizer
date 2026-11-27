@@ -42,6 +42,15 @@ export const FAKE_CONTRACTS: FakeContract[] = [
     ],
   },
   {
+    fake: "packages/core/test/fakes/fake-run-log-repository.ts",
+    fakeName: "FakeRunLogRepository",
+    adapter: "packages/cli/src/adapters/filesystem/run-log-adapter.ts",
+    adapterName: "RunLogAdapter",
+    proofs: [
+      "packages/cli/test/adapter-contract/run-log-adapter-contract.test.ts",
+    ],
+  },
+  {
     fake: "packages/core/test/fakes/fake-scratch.ts",
     fakeName: "FakeScratch",
     adapter: "packages/cli/src/adapters/system/scratch-adapter.ts",

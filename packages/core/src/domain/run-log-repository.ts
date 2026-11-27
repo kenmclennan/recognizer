@@ -27,6 +27,7 @@ export interface RunLogRepository {
     startedAt: number,
     by: string | undefined,
     invocation: string[],
+    runId: string | undefined,
   ): RunLog;
   openDescribe(
     root: string,

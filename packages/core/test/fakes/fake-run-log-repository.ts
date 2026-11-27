@@ -11,6 +11,7 @@ import type {
 export class FakeRunLogRepository implements RunLogRepository {
   readonly runLogs: {
     startedAt: number | undefined;
+    runId: string | undefined;
     skipped: SkippedPhase[];
     phases: RunPhase[];
     ended: "finish" | "stop" | null;
@@ -37,7 +38,7 @@ export class FakeRunLogRepository implements RunLogRepository {
 
   readonly records: {
     runId: string;
-    outcome: "running" | "failed" | "stopped";
+    outcome: "running" | "ok" | "failed" | "stopped";
     stopped: string[];
   }[] = [];
 
@@ -57,6 +58,15 @@ export class FakeRunLogRepository implements RunLogRepository {
     const open = this.records.find(
       (one) => one.runId === killed.runId && one.outcome === "running",
     );
+
+    if (
+      open === undefined &&
+      this.records.some(
+        (one) => one.runId === killed.runId && one.outcome === "stopped",
+      )
+    ) {
+      return;
+    }
 
     if (open === undefined) {
       this.records.push({
@@ -113,9 +123,29 @@ export class FakeRunLogRepository implements RunLogRepository {
     };
   }
 
-  open(_root?: string, startedAt?: number): RunLog {
+  open(
+    _root?: string,
+    startedAt?: number,
+    _by?: string,
+    _invocation?: string[],
+    runId?: string,
+  ): RunLog {
+    const entry =
+      runId === undefined
+        ? undefined
+        : {
+            runId,
+            outcome: "running" as "running" | "ok" | "failed" | "stopped",
+            stopped: [] as string[],
+          };
+
+    if (entry !== undefined) {
+      this.records.push(entry);
+    }
+
     const record = {
       startedAt,
+      runId,
       skipped: [] as SkippedPhase[],
       phases: [] as RunPhase[],
       ended: null as "finish" | "stop" | null,
@@ -138,11 +168,19 @@ export class FakeRunLogRepository implements RunLogRepository {
         record.ended = "finish";
         record.failed = failed;
         record.finishes += 1;
+
+        if (entry !== undefined) {
+          entry.outcome = failed ? "failed" : "ok";
+        }
       },
       stop: (phases) => {
         record.phases = phases;
         record.ended = "stop";
         record.stops += 1;
+
+        if (entry !== undefined) {
+          entry.outcome = "stopped";
+        }
       },
       id: () => "log-1",
     };

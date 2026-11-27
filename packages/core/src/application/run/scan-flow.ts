@@ -158,6 +158,7 @@ export function* scanFlow(
             taken === null ? startedAt : taken.startedAt,
             request.by,
             request.invocation,
+            taken === null ? undefined : taken.runId,
           )
         : null;
     const recorder = new RunRecorder(ctx, runLog);

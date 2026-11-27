@@ -5,6 +5,7 @@ import type { ScanStatus } from "../../../domain/scan-status.js";
 
 export interface HeldLock {
   readonly startedAt: number;
+  readonly runId: string;
   append(event: ScanEvent): void;
   running(): void;
   refused(gaps: GapRecord[], summary: RunSummary): void;

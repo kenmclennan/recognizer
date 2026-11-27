@@ -25,7 +25,6 @@ packages/core/test/fakes/fake-published-languages.ts
 packages/core/test/fakes/fake-recorded-scans.ts
 packages/core/test/fakes/fake-repository-checks.ts
 packages/core/test/fakes/fake-responsibilities-repository.ts
-packages/core/test/fakes/fake-run-log-repository.ts
 packages/core/test/fakes/fake-scan-lock.ts
 packages/core/test/fakes/fake-scanners.ts
 packages/core/test/fakes/fake-selection-files.ts

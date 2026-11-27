@@ -83,6 +83,14 @@ function logRecords(root: string) {
     );
 }
 
+function legacyRecord(root: string): void {
+  mkdirSync(logDirectory(root), { recursive: true });
+  copyFileSync(
+    join(REPO, "schema/log-examples/valid/scan-phases-running.json"),
+    join(logDirectory(root), "20261102T090000000Z-scan.json"),
+  );
+}
+
 describe("active run adapter", () => {
   it("a_full_scan_progress_log_yields_the_run_model", () => {
     const root = makeTempDir("active-run-full-scan-");
@@ -376,6 +384,102 @@ describe("active run adapter", () => {
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ outcome: "stopped" });
     expect(records[0]?.finished).not.toBeNull();
+  });
+
+  it("a_killed_scan_record_far_from_the_marker_start_is_settled_by_run_id", () => {
+    const root = makeTempDir("active-run-log-by-id-");
+    const io = nodeIo();
+    const start = Date.parse("2026-11-27T02:38:51.494Z");
+
+    openPhasedRunLog(io, root, start, "tester", ["scan"], RUN_ID);
+
+    new RunLogAdapter(io).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: new Date(start + 60_000).toISOString(),
+      startedBy: "cli",
+      running: [],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ outcome: "stopped", run_id: RUN_ID });
+    expect(records[0]?.finished).not.toBeNull();
+  });
+
+  it("a_record_with_another_run_id_is_not_settled_even_at_the_same_start", () => {
+    const root = makeTempDir("active-run-log-other-id-");
+    const io = nodeIo();
+    const start = Date.parse("2026-11-27T02:38:51.494Z");
+
+    openPhasedRunLog(io, root, start, "tester", ["scan"], "another-run");
+
+    new RunLogAdapter(io).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: new Date(start).toISOString(),
+      startedBy: "cli",
+      running: [],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      outcome: "running",
+      run_id: "another-run",
+    });
+    expect(records[1]).toMatchObject({ outcome: "stopped", run_id: RUN_ID });
+  });
+
+  it("a_legacy_record_without_a_run_id_is_still_settled_by_start_time", () => {
+    const root = makeTempDir("active-run-log-legacy-");
+
+    legacyRecord(root);
+
+    new RunLogAdapter(nodeIo()).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: "2026-11-02T09:00:00.000Z",
+      startedBy: "cli",
+      running: [],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ outcome: "stopped" });
+    expect(records[0]?.finished).not.toBeNull();
+    expect(records[0]).not.toHaveProperty("run_id");
+  });
+
+  it("a_legacy_record_far_from_the_marker_start_is_not_taken", () => {
+    const root = makeTempDir("active-run-log-legacy-far-");
+
+    legacyRecord(root);
+
+    new RunLogAdapter(nodeIo()).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: "2026-11-02T09:01:00.000Z",
+      startedBy: "cli",
+      running: [],
+    });
+
+    expect(logRecords(root)).toHaveLength(2);
+  });
+
+  it("the_record_written_when_none_is_open_carries_the_run_id", () => {
+    const root = makeTempDir("active-run-log-none-id-");
+
+    new RunLogAdapter(nodeIo()).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: new Date().toISOString(),
+      startedBy: "app",
+      running: [],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.run_id).toBe(RUN_ID);
   });
 
   it("settle_killed_writes_a_record_when_none_is_open", () => {

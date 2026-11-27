@@ -56,6 +56,7 @@ export interface RunRecord {
   started: string;
   finished: string | null;
   by: string;
+  run_id?: string;
   arguments: string[];
   outcome: "ok" | "failed" | "running" | "stopped";
   exit: 0 | 1;
@@ -221,6 +222,7 @@ export function buildPhasedRecord(
   refused = false,
   structureMs?: number,
   stopped = false,
+  runId?: string,
 ): RunRecord {
   const failed =
     refused ||
@@ -234,6 +236,7 @@ export function buildPhasedRecord(
     started: new Date(startedAt).toISOString(),
     finished: running ? null : new Date(io.now()).toISOString(),
     by: asker(io, by),
+    ...(runId === undefined ? {} : { run_id: runId }),
     arguments: argv,
     outcome: running
       ? "running"
@@ -383,6 +386,7 @@ export function openPhasedRunLog(
   startedAt: number,
   by: string | undefined,
   argv: string[],
+  runId?: string,
 ): OpenPhasedRunLog {
   const { write, id } = openWriter(io, root);
   const snapshot = (phases: RunPhase[]): RunPhase[] =>
@@ -396,7 +400,21 @@ export function openPhasedRunLog(
 
   const skipped: SkippedPhase[] = [];
 
-  write(buildPhasedRecord(io, startedAt, by, argv, [], true));
+  write(
+    buildPhasedRecord(
+      io,
+      startedAt,
+      by,
+      argv,
+      [],
+      true,
+      [],
+      false,
+      undefined,
+      false,
+      runId,
+    ),
+  );
 
   return {
     id,
@@ -413,6 +431,10 @@ export function openPhasedRunLog(
           snapshot(phases),
           true,
           skipped,
+          false,
+          undefined,
+          false,
+          runId,
         ),
       ),
     finish: (phases, refused = false, structureMs) =>
@@ -427,6 +449,8 @@ export function openPhasedRunLog(
           skipped,
           refused,
           structureMs,
+          false,
+          runId,
         ),
       ),
     stop: (phases, structureMs) =>
@@ -442,6 +466,7 @@ export function openPhasedRunLog(
           false,
           structureMs,
           true,
+          runId,
         ),
       ),
   };
@@ -612,11 +637,10 @@ function withStoppedEntries(phases: RunPhase[], names: string[]): RunPhase[] {
       );
 }
 
-function openScanRecord(
+function scanRecords(
   io: Io,
   root: string,
-  startedAt: string,
-): { file: string; record: RunRecord } | null {
+): { file: string; record: RunRecord }[] {
   const directory = logDirectory(root);
   const names = io
     .readDir(directory)
@@ -624,32 +648,54 @@ function openScanRecord(
     .filter((name) => NAME.test(name) && name.endsWith("-scan.json"))
     .sort()
     .reverse();
-  const earliest = Date.parse(startedAt) - RECYCLE_SLACK_MS;
+  const found: { file: string; record: RunRecord }[] = [];
 
   for (const name of names) {
     const file = join(directory, name);
-    let record: RunRecord;
 
     try {
-      record = validateRunRecord(JSON.parse(io.readFile(file)));
-    } catch {
-      continue;
-    }
-
-    if (Date.parse(record.started) < earliest) {
-      return null;
-    }
-
-    if (
-      record.kind === "scan" &&
-      record.outcome === "running" &&
-      record.finished === null
-    ) {
-      return { file, record };
-    }
+      found.push({
+        file,
+        record: validateRunRecord(JSON.parse(io.readFile(file))),
+      });
+    } catch {}
   }
 
-  return null;
+  return found;
+}
+
+function isOpenScan(record: RunRecord): boolean {
+  return (
+    record.kind === "scan" &&
+    record.outcome === "running" &&
+    record.finished === null
+  );
+}
+
+function openScanRecord(
+  io: Io,
+  root: string,
+  killed: KilledRunDetails,
+): { file: string; record: RunRecord } | null {
+  const records = scanRecords(io, root);
+  const named = records.find(
+    (one) => one.record.run_id === killed.runId && isOpenScan(one.record),
+  );
+
+  if (named !== undefined) {
+    return named;
+  }
+
+  const earliest = Date.parse(killed.startedAt) - RECYCLE_SLACK_MS;
+
+  return (
+    records.find(
+      (one) =>
+        one.record.run_id === undefined &&
+        Date.parse(one.record.started) >= earliest &&
+        isOpenScan(one.record),
+    ) ?? null
+  );
 }
 
 function settledBefore(
@@ -657,31 +703,27 @@ function settledBefore(
   root: string,
   killed: KilledRunDetails,
 ): boolean {
-  const directory = logDirectory(root);
   const started = Date.parse(killed.startedAt);
+  const stopped = (record: RunRecord) =>
+    record.kind === "scan" &&
+    record.outcome === "stopped" &&
+    record.exit === 1 &&
+    record.finished !== null;
 
   try {
-    return io
-      .readDir(directory)
-      .map((entry) => entry.name)
-      .filter((name) => NAME.test(name) && name.endsWith("-scan.json"))
-      .some((name) => {
-        try {
-          const record = validateRunRecord(
-            JSON.parse(io.readFile(join(directory, name))),
-          );
+    const records = scanRecords(io, root).map((one) => one.record);
 
-          return (
-            record.kind === "scan" &&
-            record.outcome === "stopped" &&
-            record.exit === 1 &&
-            record.finished !== null &&
-            Math.abs(Date.parse(record.started) - started) <= RECYCLE_SLACK_MS
-          );
-        } catch {
-          return false;
-        }
-      });
+    return (
+      records.some(
+        (record) => record.run_id === killed.runId && stopped(record),
+      ) ||
+      records.some(
+        (record) =>
+          record.run_id === undefined &&
+          stopped(record) &&
+          Math.abs(Date.parse(record.started) - started) <= RECYCLE_SLACK_MS,
+      )
+    );
   } catch {
     return false;
   }
@@ -695,7 +737,7 @@ export function settleKilledRun(
   let open: { file: string; record: RunRecord } | null = null;
 
   try {
-    open = openScanRecord(io, root, killed.startedAt);
+    open = openScanRecord(io, root, killed);
   } catch {
     open = null;
   }
@@ -724,6 +766,7 @@ export function settleKilledRun(
     started: killed.startedAt,
     finished,
     by: asker(io, killed.startedBy),
+    run_id: killed.runId,
     arguments: ["scan"],
     outcome: "stopped",
     exit: 1,
