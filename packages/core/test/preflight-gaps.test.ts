@@ -142,6 +142,29 @@ describe("program gaps", () => {
     ).toEqual(["sensors:missing:python3"]);
   });
 
+  it("probes the command a registered sensor runs, never its bare program name", () => {
+    const { ports } = sensing();
+    const probed: string[] = [];
+    const absolute = `/opt/registered/${SENSE}ruler`;
+
+    ports.sensors.probe = (program: string) => {
+      probed.push(program);
+
+      return { started: program === absolute, status: 0 };
+    };
+
+    const registered = {
+      name: "ruler",
+      command: [absolute, "run"],
+      manifest: [`${SENSE}ruler`, "manifest"],
+    };
+
+    expect(
+      findProgramGaps(ports, { sensors: [registered], install: {} }),
+    ).toEqual([]);
+    expect(probed).toEqual([absolute]);
+  });
+
   it("does not probe a sensor with no manifest", () => {
     const { fakes, ports } = sensing();
 
