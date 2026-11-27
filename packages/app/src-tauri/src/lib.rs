@@ -11,12 +11,15 @@ pub mod fs_safe;
 mod launch;
 pub mod link;
 pub mod recent;
+pub mod recent_domain;
 pub mod repository;
 pub mod responsibilities;
 pub mod scan_run;
 pub mod scan_ticks;
+pub mod scan_ticks_domain;
 pub mod sensors;
 pub mod settings;
+pub mod settings_domain;
 pub mod shutdown;
 pub mod socket;
 pub mod tool_runner;
@@ -243,27 +246,30 @@ fn choose_and_open(app: &AppHandle) {
 
 static RECENT_LOCK: Mutex<()> = Mutex::new(());
 
-fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
+fn recent_file(app: &AppHandle) -> Result<recent::JsonRecentFolders, String> {
     app.path()
         .app_config_dir()
-        .map(|dir| recent::recent_file_in(&dir))
+        .map(|dir| recent::JsonRecentFolders::new(recent::recent_file_in(&dir)))
         .map_err(|error| error.to_string())
 }
 
-fn ticks_file(app: &AppHandle) -> Result<PathBuf, String> {
+fn ticks_file(app: &AppHandle) -> Result<scan_ticks::JsonScanTicks, String> {
     app.path()
         .app_config_dir()
-        .map(|dir| scan_ticks::ticks_file_in(&dir))
+        .map(|dir| scan_ticks::JsonScanTicks::new(scan_ticks::ticks_file_in(&dir)))
         .map_err(|error| error.to_string())
 }
 
-fn update_recent(app: &AppHandle, change: impl FnOnce(&Path) -> Result<Vec<PathBuf>, String>) {
+fn update_recent(
+    app: &AppHandle,
+    change: impl FnOnce(&dyn recent_domain::RecentFoldersRepository) -> Result<Vec<PathBuf>, String>,
+) {
     let result = {
         let _guard = RECENT_LOCK
             .lock()
             .unwrap_or_else(|error| error.into_inner());
 
-        recent_file(app).and_then(|file| change(&file))
+        recent_file(app).and_then(|repository| change(&repository))
     };
 
     if let Err(error) = result {
@@ -276,7 +282,7 @@ fn update_recent(app: &AppHandle, change: impl FnOnce(&Path) -> Result<Vec<PathB
 }
 
 fn remember(app: &AppHandle, folder: &Path) {
-    update_recent(app, |file| recent::record(file, folder));
+    update_recent(app, |repository| recent_domain::record(repository, folder));
 }
 
 fn rebuild_menu(app: &AppHandle) {
@@ -298,23 +304,19 @@ fn open_recent(app: &AppHandle, folder: &Path) {
             }
         }
         Err(message) => {
-            update_recent(app, |file| recent::forget(file, folder));
+            update_recent(app, |repository| recent_domain::forget(repository, folder));
             refuse(app, &message);
         }
     }
 }
 
 fn clear_recent(app: &AppHandle) {
-    update_recent(app, |file| {
-        recent::write(file, &[])?;
-
-        Ok(Vec::new())
-    });
+    update_recent(app, recent_domain::clear);
 }
 
 fn recent_submenu(app: &AppHandle) -> tauri::Result<Submenu<tauri::Wry>> {
     let list = recent_file(app)
-        .map(|file| recent::read(&file))
+        .map(|repository| recent_domain::recent_folders(&repository))
         .unwrap_or_default();
     let mut builder = SubmenuBuilder::new(app, "Open Recent");
 
@@ -429,21 +431,21 @@ fn start_socket(app: &AppHandle) -> Option<socket::Server> {
     }
 }
 
-fn config_file(app: &AppHandle) -> Result<PathBuf, String> {
+fn config_file(app: &AppHandle) -> Result<settings::JsonSettingsFile, String> {
     app.path()
         .app_config_dir()
-        .map(|dir| repository::config_file_in(&dir))
+        .map(|dir| settings::JsonSettingsFile::new(repository::config_file_in(&dir)))
         .map_err(|error| error.to_string())
 }
 
-fn settings_check(core: CoreClient) -> impl Fn(&settings::Settings) -> Result<(), String> {
+fn settings_check(core: CoreClient) -> impl Fn(&settings_domain::Settings) -> Result<(), String> {
     move |settings| {
         let reply = core.call(
             "settings",
             None,
             "settings.validate",
             serde_json::json!({
-                "describing": settings::describing_json(&settings.describing),
+                "describing": settings_domain::describing_json(&settings.describing),
                 "setup": { "model": settings.setup.model },
             }),
         )?;
@@ -466,10 +468,10 @@ fn service_problem(reply: &serde_json::Value) -> Result<&serde_json::Value, Stri
 
 fn read_with(
     core: &CoreClient,
-    config: &Path,
+    config: &dyn settings_domain::SettingsRepository,
     with_model_default: bool,
-) -> Result<settings::Settings, String> {
-    let stored = settings::read(config)?;
+) -> Result<settings_domain::Settings, String> {
+    let stored = settings_domain::read(config)?;
     let reply = core.call(
         "settings",
         None,
@@ -482,7 +484,7 @@ fn read_with(
     )?;
     let reply = service_problem(&reply)?;
 
-    settings::from_values(
+    settings_domain::from_values(
         stored.editor,
         reply
             .pointer("/ok/values")
@@ -490,7 +492,7 @@ fn read_with(
     )
 }
 
-fn read_checked(app: &AppHandle) -> Result<settings::Settings, String> {
+fn read_checked(app: &AppHandle) -> Result<settings_domain::Settings, String> {
     let core = app.state::<CoreClient>().inner().clone();
 
     read_with(&core, &config_file(app)?, false)
@@ -963,10 +965,13 @@ fn setup_environment() -> serde_json::Value {
 }
 
 #[tauri::command]
-fn read_scan_ticks(app: AppHandle, window: WebviewWindow) -> Result<scan_ticks::ScanTicks, String> {
+fn read_scan_ticks(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<scan_ticks_domain::ScanTicks, String> {
     let folder = window_folder_path(&app, &window)?;
 
-    Ok(scan_ticks::read(&ticks_file(&app)?, &folder))
+    Ok(scan_ticks_domain::read(&ticks_file(&app)?, &folder))
 }
 
 #[tauri::command]
@@ -978,15 +983,15 @@ fn write_scan_ticks(
     analysis: Option<bool>,
     ticked: Vec<String>,
     only_view: bool,
-    suites: Option<std::collections::BTreeMap<String, scan_ticks::SuiteTicks>>,
+    suites: Option<std::collections::BTreeMap<String, scan_ticks_domain::SuiteTicks>>,
     folds: Option<Vec<String>>,
 ) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
 
-    scan_ticks::write(
+    scan_ticks_domain::write(
         &ticks_file(&app)?,
         &folder,
-        scan_ticks::StoredTicks {
+        scan_ticks_domain::StoredTicks {
             describe,
             analysis: analysis.unwrap_or(true),
             measure: false,
@@ -1001,19 +1006,19 @@ fn write_scan_ticks(
 }
 
 #[tauri::command]
-fn read_settings(app: AppHandle) -> Result<settings::Settings, String> {
+fn read_settings(app: AppHandle) -> Result<settings_domain::Settings, String> {
     let core = app.state::<CoreClient>().inner().clone();
 
     read_with(&core, &config_file(&app)?, true)
 }
 
 #[tauri::command]
-fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
+fn write_settings(app: AppHandle, settings: settings_domain::Settings) -> Result<(), String> {
     let core = app.state::<CoreClient>().inner().clone();
     let config = config_file(&app)?;
     let baseline = read_with(&core, &config, true)?;
 
-    settings::save(
+    settings_domain::save(
         &config,
         &settings,
         &baseline,
@@ -1026,7 +1031,7 @@ fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), St
 }
 
 #[tauri::command]
-fn read_describing(app: AppHandle) -> Result<settings::Describing, String> {
+fn read_describing(app: AppHandle) -> Result<settings_domain::Describing, String> {
     Ok(read_settings(app)?.describing)
 }
 
@@ -1298,10 +1303,10 @@ fn write_view(
     views::write_view(&window_folder_path(&app, &window)?, &name, &text)
 }
 
-fn recent_views_file(app: &AppHandle) -> Result<PathBuf, String> {
+fn recent_views_file(app: &AppHandle) -> Result<recent::JsonRecentViews, String> {
     app.path()
         .app_config_dir()
-        .map(|dir| recent::recent_views_file_in(&dir))
+        .map(|dir| recent::JsonRecentViews::new(recent::recent_views_file_in(&dir)))
         .map_err(|error| error.to_string())
 }
 
@@ -1312,7 +1317,7 @@ fn remove_view(app: AppHandle, window: WebviewWindow, name: String) -> Result<()
 
 #[tauri::command]
 fn read_recent_views(app: AppHandle, window: WebviewWindow) -> Result<Vec<String>, String> {
-    Ok(recent::read_recent_views(
+    Ok(recent_domain::read_recent_views(
         &recent_views_file(&app)?,
         &window_folder_path(&app, &window)?,
     ))
@@ -1320,7 +1325,7 @@ fn read_recent_views(app: AppHandle, window: WebviewWindow) -> Result<Vec<String
 
 #[tauri::command]
 fn record_recent_view(app: AppHandle, window: WebviewWindow, name: String) -> Result<(), String> {
-    recent::record_recent_view(
+    recent_domain::record_recent_view(
         &recent_views_file(&app)?,
         &window_folder_path(&app, &window)?,
         &name,

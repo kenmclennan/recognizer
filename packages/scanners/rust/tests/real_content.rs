@@ -128,7 +128,7 @@ fn lib_declares_each_module_file_and_imports_the_changes_names() {
 
     expected.sort();
 
-    assert_eq!(mods.len(), 18);
+    assert_eq!(mods.len(), 21);
     assert_eq!(edge_targets, expected);
 
     let core_client = document["edges"]

@@ -3,50 +3,80 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::fs_safe::write_atomic;
-use crate::views::valid_name;
-
-pub const LIMIT: usize = 10;
+use crate::recent_domain::{RecentFoldersRepository, RecentViewsRepository};
 
 pub fn recent_file_in(config_dir: &Path) -> PathBuf {
     config_dir.join("recent.json")
 }
 
-pub const VIEW_LIMIT: usize = 5;
-
 pub fn recent_views_file_in(config_dir: &Path) -> PathBuf {
     config_dir.join("recent-views.json")
 }
 
-fn read_recent_map(path: &Path) -> BTreeMap<String, Vec<String>> {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+pub struct JsonRecentFolders {
+    path: PathBuf,
 }
 
-pub fn read_recent_views(path: &Path, folder: &Path) -> Vec<String> {
-    read_recent_map(path)
-        .remove(&folder.display().to_string())
-        .unwrap_or_default()
+impl JsonRecentFolders {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
 }
 
-pub fn record_recent_view(path: &Path, folder: &Path, name: &str) -> Result<(), String> {
-    if !valid_name(name) {
-        return Err(format!("{name:?} is not a valid view name"));
+impl RecentFoldersRepository for JsonRecentFolders {
+    fn load(&self) -> Vec<PathBuf> {
+        let Ok(text) = fs::read_to_string(&self.path) else {
+            return Vec::new();
+        };
+        let Ok(entries) = serde_json::from_str::<Vec<String>>(&text) else {
+            return Vec::new();
+        };
+
+        entries.into_iter().map(PathBuf::from).collect()
     }
 
-    let mut all = read_recent_map(path);
-    let list = all.entry(folder.display().to_string()).or_default();
+    fn store(&self, list: &[PathBuf]) -> Result<(), String> {
+        let entries: Vec<String> = list
+            .iter()
+            .map(|entry| entry.to_string_lossy().into_owned())
+            .collect();
+        let text = serde_json::to_string_pretty(&entries).map_err(|error| error.to_string())?;
+        let temp = self.path.with_extension("json.tmp");
 
-    list.retain(|existing| existing != name);
-    list.insert(0, name.to_string());
-    list.truncate(VIEW_LIMIT);
+        if let Some(parent) = self.path.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
 
-    let mut text = serde_json::to_string_pretty(&all).map_err(|error| error.to_string())?;
+        fs::write(&temp, text).map_err(|error| error.to_string())?;
+        fs::rename(&temp, &self.path).map_err(|error| error.to_string())
+    }
+}
 
-    text.push('\n');
+pub struct JsonRecentViews {
+    path: PathBuf,
+}
 
-    write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
+impl JsonRecentViews {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl RecentViewsRepository for JsonRecentViews {
+    fn load(&self) -> BTreeMap<String, Vec<String>> {
+        fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default()
+    }
+
+    fn store(&self, all: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+        let mut text = serde_json::to_string_pretty(all).map_err(|error| error.to_string())?;
+
+        text.push('\n');
+
+        write_atomic(&self.path, &text).map_err(|error| format!("{}: {error}", self.path.display()))
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -60,26 +90,6 @@ pub fn open_target(focused: Option<&str>, focused_has_folder: bool) -> OpenTarge
         Some(label) if !focused_has_folder => OpenTarget::AssignTo(label.to_string()),
         _ => OpenTarget::NewWindow,
     }
-}
-
-pub fn with_opened(list: &[PathBuf], folder: &Path) -> Vec<PathBuf> {
-    let mut next = vec![folder.to_path_buf()];
-
-    next.extend(
-        list.iter()
-            .filter(|entry| entry.as_path() != folder)
-            .cloned(),
-    );
-    next.truncate(LIMIT);
-
-    next
-}
-
-pub fn without(list: &[PathBuf], folder: &Path) -> Vec<PathBuf> {
-    list.iter()
-        .filter(|entry| entry.as_path() != folder)
-        .cloned()
-        .collect()
 }
 
 pub fn labels(list: &[PathBuf]) -> Vec<String> {
@@ -109,64 +119,13 @@ pub fn labels(list: &[PathBuf]) -> Vec<String> {
         .collect()
 }
 
-pub fn read(path: &Path) -> Vec<PathBuf> {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return Vec::new();
-    };
-    let Ok(entries) = serde_json::from_str::<Vec<String>>(&text) else {
-        return Vec::new();
-    };
-
-    let mut list = Vec::new();
-
-    for entry in entries {
-        let entry = PathBuf::from(entry);
-
-        if !list.contains(&entry) {
-            list.push(entry);
-        }
-    }
-
-    list.truncate(LIMIT);
-
-    list
-}
-
-pub fn write(path: &Path, list: &[PathBuf]) -> Result<(), String> {
-    let entries: Vec<String> = list
-        .iter()
-        .map(|entry| entry.to_string_lossy().into_owned())
-        .collect();
-    let text = serde_json::to_string_pretty(&entries).map_err(|error| error.to_string())?;
-    let temp = path.with_extension("json.tmp");
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-
-    std::fs::write(&temp, text).map_err(|error| error.to_string())?;
-    std::fs::rename(&temp, path).map_err(|error| error.to_string())
-}
-
-pub fn record(path: &Path, folder: &Path) -> Result<Vec<PathBuf>, String> {
-    let next = with_opened(&read(path), folder);
-
-    write(path, &next)?;
-
-    Ok(next)
-}
-
-pub fn forget(path: &Path, folder: &Path) -> Result<Vec<PathBuf>, String> {
-    let next = without(&read(path), folder);
-
-    write(path, &next)?;
-
-    Ok(next)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::recent_domain::tests::contract;
+    use crate::recent_domain::{
+        forget, read_recent_views, recent_folders, record, record_recent_view,
+    };
     use tempfile::TempDir;
 
     fn paths(names: &[&str]) -> Vec<PathBuf> {
@@ -174,35 +133,54 @@ mod tests {
     }
 
     #[test]
+    fn the_file_adapter_meets_the_recent_folders_contract() {
+        let dir = TempDir::new().unwrap();
+
+        contract::recent_folders_repository(&JsonRecentFolders::new(recent_file_in(dir.path())));
+    }
+
+    #[test]
+    fn the_file_adapter_meets_the_recent_views_contract() {
+        let dir = TempDir::new().unwrap();
+
+        contract::recent_views_repository(&JsonRecentViews::new(recent_views_file_in(dir.path())));
+    }
+
+    #[test]
     fn recent_views_record_dedupe_cap_and_key_by_folder() {
         let dir = TempDir::new().unwrap();
-        let file = recent_views_file_in(dir.path());
+        let repository = JsonRecentViews::new(recent_views_file_in(dir.path()));
         let one = Path::new("/one");
         let two = Path::new("/two");
 
         for name in ["a", "b", "c", "d", "e", "f", "c"] {
-            record_recent_view(&file, one, name).unwrap();
+            record_recent_view(&repository, one, name).unwrap();
         }
 
-        record_recent_view(&file, two, "z").unwrap();
+        record_recent_view(&repository, two, "z").unwrap();
 
-        assert_eq!(read_recent_views(&file, one), ["c", "f", "e", "d", "b"]);
-        assert_eq!(read_recent_views(&file, two), ["z"]);
-        assert!(record_recent_view(&file, one, "../x").is_err());
+        assert_eq!(
+            read_recent_views(&repository, one),
+            ["c", "f", "e", "d", "b"]
+        );
+        assert_eq!(read_recent_views(&repository, two), ["z"]);
+        assert!(record_recent_view(&repository, one, "../x").is_err());
     }
 
     #[test]
     fn an_unreadable_recent_views_file_reads_as_empty() {
         let dir = TempDir::new().unwrap();
         let file = recent_views_file_in(dir.path());
+        let repository = JsonRecentViews::new(file.clone());
 
-        assert!(read_recent_views(&file, Path::new("/one")).is_empty());
+        assert!(read_recent_views(&repository, Path::new("/one")).is_empty());
 
         fs::write(&file, "not json").unwrap();
 
-        assert!(read_recent_views(&file, Path::new("/one")).is_empty());
-        record_recent_view(&file, Path::new("/one"), "a").unwrap();
-        assert_eq!(read_recent_views(&file, Path::new("/one")), ["a"]);
+        assert!(read_recent_views(&repository, Path::new("/one")).is_empty());
+        record_recent_view(&repository, Path::new("/one"), "a").unwrap();
+        assert_eq!(read_recent_views(&repository, Path::new("/one")), ["a"]);
+        assert!(fs::read_to_string(&file).unwrap().ends_with("}\n"));
     }
 
     #[test]
@@ -214,46 +192,10 @@ mod tests {
     }
 
     #[test]
-    fn an_opened_folder_goes_first() {
-        assert_eq!(
-            with_opened(&paths(&["/a", "/b"]), Path::new("/c")),
-            paths(&["/c", "/a", "/b"])
-        );
-    }
-
-    #[test]
-    fn reopening_a_folder_moves_it_first_without_a_duplicate() {
-        assert_eq!(
-            with_opened(&paths(&["/a", "/b", "/c"]), Path::new("/c")),
-            paths(&["/c", "/a", "/b"])
-        );
-    }
-
-    #[test]
-    fn the_list_holds_the_last_ten() {
-        let full: Vec<PathBuf> = (0..LIMIT)
-            .map(|n| PathBuf::from(format!("/f{n}")))
-            .collect();
-        let next = with_opened(&full, Path::new("/new"));
-
-        assert_eq!(next.len(), LIMIT);
-        assert_eq!(next[0], PathBuf::from("/new"));
-        assert!(!next.contains(&PathBuf::from(format!("/f{}", LIMIT - 1))));
-    }
-
-    #[test]
-    fn removing_drops_only_that_folder() {
-        assert_eq!(
-            without(&paths(&["/a", "/b", "/c"]), Path::new("/b")),
-            paths(&["/a", "/c"])
-        );
-    }
-
-    #[test]
     fn a_missing_file_reads_as_empty() {
         let dir = TempDir::new().unwrap();
 
-        assert!(read(&dir.path().join("recent.json")).is_empty());
+        assert!(recent_folders(&JsonRecentFolders::new(dir.path().join("recent.json"))).is_empty());
     }
 
     #[test]
@@ -261,50 +203,34 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("recent.json");
 
-        std::fs::write(&file, "not json").unwrap();
+        fs::write(&file, "not json").unwrap();
 
-        assert!(read(&file).is_empty());
+        assert!(recent_folders(&JsonRecentFolders::new(file)).is_empty());
     }
 
     #[test]
     fn recording_persists_in_most_recent_first_order_and_leaves_no_temp_file() {
         let dir = TempDir::new().unwrap();
-        let file = recent_file_in(dir.path());
+        let repository = JsonRecentFolders::new(recent_file_in(dir.path()));
 
-        record(&file, Path::new("/a")).unwrap();
-        record(&file, Path::new("/b")).unwrap();
-        record(&file, Path::new("/a")).unwrap();
+        record(&repository, Path::new("/a")).unwrap();
+        record(&repository, Path::new("/b")).unwrap();
+        record(&repository, Path::new("/a")).unwrap();
 
-        assert_eq!(read(&file), paths(&["/a", "/b"]));
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        assert_eq!(recent_folders(&repository), paths(&["/a", "/b"]));
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]
     fn forgetting_removes_the_entry_from_the_file() {
         let dir = TempDir::new().unwrap();
-        let file = recent_file_in(dir.path());
+        let repository = JsonRecentFolders::new(recent_file_in(dir.path()));
 
-        record(&file, Path::new("/a")).unwrap();
-        record(&file, Path::new("/b")).unwrap();
-        forget(&file, Path::new("/a")).unwrap();
+        record(&repository, Path::new("/a")).unwrap();
+        record(&repository, Path::new("/b")).unwrap();
+        forget(&repository, Path::new("/a")).unwrap();
 
-        assert_eq!(read(&file), paths(&["/b"]));
-    }
-
-    #[test]
-    fn a_stored_list_with_duplicates_and_excess_is_normalised_on_read() {
-        let dir = TempDir::new().unwrap();
-        let file = dir.path().join("recent.json");
-        let mut entries: Vec<String> = (0..15).map(|n| format!("/f{n}")).collect();
-
-        entries.insert(1, "/f0".to_string());
-        std::fs::write(&file, serde_json::to_string(&entries).unwrap()).unwrap();
-
-        let list = read(&file);
-
-        assert_eq!(list.len(), LIMIT);
-        assert_eq!(list[0], PathBuf::from("/f0"));
-        assert_eq!(list[1], PathBuf::from("/f1"));
+        assert_eq!(recent_folders(&repository), paths(&["/b"]));
     }
 
     #[test]
