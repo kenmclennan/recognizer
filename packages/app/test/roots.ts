@@ -13,6 +13,7 @@ import { createInterface } from "node:readline";
 import { onTestFinished, vi } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { writersIn } from "../../../tools/scripts/service-scratch-teardown.mjs";
+import { stopProcessesSync } from "../../../tools/scripts/stop-processes-sync.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import {
   registerShim,
@@ -156,6 +157,18 @@ export class Serve {
     } else {
       remove();
     }
+  }
+
+  stopAtWorkerExit(): void {
+    if (this.child.pid === undefined || !this.running()) {
+      return;
+    }
+
+    this.stopped = true;
+    stopProcessesSync([this.child.pid, ...writersIn(this.scratch)], {
+      graceMs: scaledTimeout(15_000),
+    });
+    rmSync(this.scratch, { recursive: true, force: true, maxRetries: 5 });
   }
 
   private killGroup(signal: "SIGTERM" | "SIGKILL"): void {
@@ -350,6 +363,23 @@ export async function sharedServe(): Promise<Serve> {
   onTestFinished(() => settle(serve), scaledTimeout(120_000));
 
   return serve;
+}
+
+let exitHookRegistered = false;
+
+export function closeSharedServiceAtWorkerExit(): void {
+  if (exitHookRegistered) {
+    return;
+  }
+
+  exitHookRegistered = true;
+
+  process.once("exit", () => {
+    const service = sharedService;
+
+    sharedService = undefined;
+    service?.stopAtWorkerExit();
+  });
 }
 
 export function git(repository: string, ...args: string[]): void {

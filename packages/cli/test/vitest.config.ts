@@ -56,6 +56,7 @@ export default defineConfig({
           setupFiles: [
             "../../tools/scripts/service-scratch-worker.mjs",
             "./test/app-config-dir.setup.ts",
+            "./test/end-to-end/shared-service-close.setup.ts",
           ],
           include: endToEndService,
         },
