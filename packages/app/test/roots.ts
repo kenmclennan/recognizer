@@ -76,7 +76,7 @@ export class Serve {
   private readonly pending = new Map<number, (line: Line) => void>();
   private readonly waiters: (() => void)[] = [];
 
-  private readonly scratch = makeTempDir("recognizer-serve-tmp-");
+  readonly scratch = makeTempDir("recognizer-serve-tmp-");
 
   running(): boolean {
     return this.child.exitCode === null && this.child.signalCode === null;

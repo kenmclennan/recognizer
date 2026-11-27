@@ -38,7 +38,9 @@ export function writersIn(scratch, listing = psListing()) {
     .filter((line) => {
       const at = line.indexOf(marker);
 
-      return at !== -1 && [" ", undefined].includes(line[at + marker.length]);
+      return (
+        at !== -1 && [" ", "/", undefined].includes(line[at + marker.length])
+      );
     })
     .map((line) => Number(line.trim().split(/\s+/)[0]))
     .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid);
