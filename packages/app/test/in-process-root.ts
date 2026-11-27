@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { vi } from "vitest";
 import {
+  type Gate,
   type Program,
   type Line as ServeLine,
   sensorManifest,
@@ -8,6 +9,7 @@ import {
   serveRoot,
   typescriptScanner,
 } from "../../cli/test/support/index";
+import type { StoredTicks } from "../src/scan-port";
 import {
   bridge,
   cleanups,
@@ -26,14 +28,30 @@ export type InProcessRootOptions = {
   programs?: Record<string, Program>;
   origin?: { branch: string; commit: string };
   failing?: string[];
-  uncommitted?: boolean;
+  holds?: Record<string, Gate>;
   ticks?: Record<string, unknown>;
+  describing?: {
+    model: string | null;
+    batchSize: number;
+    confirmAboveUsd: number;
+  };
+  uncommitted?: boolean;
   record?: (
     command: string,
     args: Record<string, unknown>,
     reply: unknown,
     lines: readonly Line[],
   ) => void;
+};
+
+const FIXED_TICKS: StoredTicks = {
+  describe: false,
+  analysis: false,
+  sensors: false,
+  ticked: ["crap", "mutation"],
+  remembered: true,
+  suites: {},
+  folds: [],
 };
 
 const DEFAULT_CONFIG =
@@ -196,11 +214,30 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
 
   const folder = { known: options.folderKnown ?? true };
 
+  let stored: StoredTicks = { ...FIXED_TICKS, ...options.ticks };
+  const ticksWritten: Record<string, unknown>[] = [];
+
   const answer = async (command: string, args: Record<string, unknown>) => {
+    const held = options.holds?.[command];
+
+    if (held !== undefined) {
+      await held.wait();
+    }
+
+    if (command !== "core_call" && options.failing?.includes(command)) {
+      throw new Error(`${command} failed`);
+    }
+
     switch (command) {
       case "core_call": {
         if (options.failing?.includes(String(args.op))) {
           throw new Error(`${String(args.op)} failed`);
+        }
+
+        const heldOp = options.holds?.[String(args.op)];
+
+        if (heldOp !== undefined) {
+          await heldOp.wait();
         }
 
         const request = { ...(args.args as Record<string, unknown>) };
@@ -217,16 +254,29 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
       case "adopt_scan":
         return options.origin ?? { branch: "main", commit: "abc" };
       case "read_scan_ticks":
-        return {
-          describe: false,
-          analysis: false,
-          sensors: false,
-          ticked: ["crap", "mutation"],
+        return stored;
+      case "write_scan_ticks":
+        ticksWritten.push(args);
+        stored = {
+          ...stored,
+          describe: Boolean(args.describe),
+          analysis: Boolean(args.analysis),
+          ticked: args.ticked as string[],
+          onlyView: Boolean(args.onlyView),
+          suites: args.suites as StoredTicks["suites"],
+          folds: args.folds as string[],
           remembered: true,
-          suites: {},
-          folds: [],
-          ...options.ticks,
         };
+
+        return undefined;
+      case "read_describing":
+        return (
+          options.describing ?? {
+            model: null,
+            batchSize: 3,
+            confirmAboveUsd: 0,
+          }
+        );
       default:
         return undefined;
     }
@@ -259,9 +309,19 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     view,
     assignFolder,
     service,
+    ticksWritten,
     repository: REPOSITORY,
     io: root.io,
     repositories: root.repositories,
+    second: () =>
+      serveRoot({
+        files: root.io.files,
+        repositories: root.repositories,
+        programs: {
+          "recognizer-scan-typescript": typescriptScanner(),
+          ...options.programs,
+        },
+      }),
     lines: root.lines,
     testFile: `${REPOSITORY}/api/tests/a.test.ts`,
   };

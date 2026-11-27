@@ -7,10 +7,11 @@ import { editorSource } from "../src/editor-source";
 import type { Explorer, ScanHost } from "../src/explorer";
 import type { FooterView } from "../src/footer-view";
 import type { HoldingView } from "../src/holding-view";
-import type { MessageInput } from "../src/message-tray";
+import type { MessageAction, MessageInput } from "../src/message-tray";
 import type { Loaded } from "../src/scan-loading";
 import type { OpenActions, OpenView } from "../src/scan-open-view";
 import { rowSensors } from "../src/scan-panel-model";
+import type { ShowTarget } from "../src/scan-progress";
 
 type Listener = (event: { payload: unknown }) => void;
 
@@ -57,6 +58,16 @@ export type RecordedExplorer = Explorer & {
   reloads: number;
   host: ScanHost;
   select(selection: Selection): void;
+  shown: ShowTarget[];
+  carries: number;
+  described: number;
+};
+
+export type Tray = {
+  posted: { id: number; input: MessageInput }[];
+  attached: { id: number; extra: MessageAction }[];
+  withdrawn: number[];
+  relabelled: { id: number; label: string }[];
 };
 
 export type RecordingView = AppView & {
@@ -66,6 +77,8 @@ export type RecordingView = AppView & {
   readonly messages: { text: string; isError: boolean }[];
   readonly posted: MessageInput[];
   readonly shown: string[];
+  readonly tray: Tray;
+  readonly progress: (string | null)[];
   explorer(): RecordedExplorer | null;
   loaded(): Loaded | null;
   freshnessOf(name: string): string | undefined;
@@ -79,16 +92,40 @@ export function recordingView(): RecordingView {
   const posted: MessageInput[] = [];
   const shown: string[] = [];
   const explorers: RecordedExplorer[] = [];
+  const progress: (string | null)[] = [];
+  const tray: Tray = {
+    posted: [],
+    attached: [],
+    withdrawn: [],
+    relabelled: [],
+  };
 
   const footer: FooterView = {
     post: (input) => {
       posted.push(input);
 
-      return null;
+      if (
+        input.key !== undefined &&
+        tray.posted.some((one) => one.input.key === input.key)
+      ) {
+        return null;
+      }
+
+      const id = tray.posted.length + 1;
+
+      tray.posted.push({ id, input });
+
+      return id;
     },
-    attach: () => {},
-    withdraw: () => {},
-    relabel: () => {},
+    attach: (id, extra) => {
+      tray.attached.push({ id, extra });
+    },
+    withdraw: (id) => {
+      tray.withdrawn.push(id);
+    },
+    relabel: (id, label) => {
+      tray.relabelled.push({ id, label });
+    },
     reconcile: () => {},
     setCount: (text) => counts.push(text),
     setScan: (text) => scanLines.push(text),
@@ -109,6 +146,8 @@ export function recordingView(): RecordingView {
     messages,
     posted,
     shown,
+    tray,
+    progress,
     explorer,
     loaded,
     freshnessOf: (name) => {
@@ -144,7 +183,12 @@ export function recordingView(): RecordingView {
     showHolding: (): HoldingView => {
       shown.push("holding");
 
-      return { update: () => {}, remove: () => {} };
+      return {
+        update: (text) => {
+          progress.push(text);
+        },
+        remove: () => {},
+      };
     },
     showOpen: (_actions: OpenActions): OpenView => {
       shown.push("open");
@@ -158,8 +202,15 @@ export function recordingView(): RecordingView {
         loads: [request.loaded],
         reloads: 0,
         host: request.scanHost,
+        shown: [],
+        carries: 0,
+        described: 0,
         toggleTree: () => {},
-        carry: () => null as never,
+        carry: () => {
+          recorded.carries += 1;
+
+          return null as never;
+        },
         update: (next) => {
           recorded.loads.push(next);
         },
@@ -175,10 +226,16 @@ export function recordingView(): RecordingView {
           );
         },
         openLinkedView: () => {},
-        refreshResponsibilities: () => {},
-        refreshPanel: () => {},
+        refreshResponsibilities: () => {
+          recorded.described += 1;
+        },
+        refreshPanel: () => {
+          progress.push(request.scanHost.progressText());
+        },
         setSetupProblems: () => {},
-        show: () => {},
+        show: (target) => {
+          recorded.shown.push(target);
+        },
         dispose: () => {},
       };
 
