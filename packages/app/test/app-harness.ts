@@ -1,10 +1,14 @@
 import { afterEach, vi } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import type { AppView, ExplorerRequest } from "../src/app-root";
+import type { Selection } from "../src/canvas-state";
+import { openInEditor } from "../src/editor-open";
+import { editorSource } from "../src/editor-source";
 import type { Explorer, ScanHost } from "../src/explorer";
 import type { FooterView } from "../src/footer-view";
 import { isStale } from "../src/freshness-facts";
 import type { HoldingView } from "../src/holding-view";
+import type { MessageInput } from "../src/message-tray";
 import type { Loaded } from "../src/scan-loading";
 import type { OpenActions, OpenView } from "../src/scan-open-view";
 import { rowSensors } from "../src/scan-panel-model";
@@ -53,6 +57,7 @@ export type RecordedExplorer = Explorer & {
   loads: Loaded[];
   reloads: number;
   host: ScanHost;
+  select(selection: Selection): void;
 };
 
 export type RecordingView = AppView & {
@@ -60,6 +65,7 @@ export type RecordingView = AppView & {
   readonly counts: string[];
   readonly scanLines: (string | null)[];
   readonly messages: { text: string; isError: boolean }[];
+  readonly posted: MessageInput[];
   readonly shown: string[];
   explorer(): RecordedExplorer | null;
   loaded(): Loaded | null;
@@ -71,11 +77,16 @@ export function recordingView(): RecordingView {
   const counts: string[] = [];
   const scanLines: (string | null)[] = [];
   const messages: { text: string; isError: boolean }[] = [];
+  const posted: MessageInput[] = [];
   const shown: string[] = [];
   const explorers: RecordedExplorer[] = [];
 
   const footer: FooterView = {
-    post: () => null,
+    post: (input) => {
+      posted.push(input);
+
+      return null;
+    },
     attach: () => {},
     withdraw: () => {},
     relabel: () => {},
@@ -97,6 +108,7 @@ export function recordingView(): RecordingView {
     counts,
     scanLines,
     messages,
+    posted,
     shown,
     explorer,
     loaded,
@@ -141,6 +153,8 @@ export function recordingView(): RecordingView {
       return { render: () => {}, remove: () => {} };
     },
     showExplorer: (request: ExplorerRequest) => {
+      let selection: Selection = null;
+
       const recorded: RecordedExplorer = {
         loads: [request.loaded],
         reloads: 0,
@@ -153,7 +167,14 @@ export function recordingView(): RecordingView {
         reloadSensors: async () => {
           recorded.reloads += 1;
         },
-        openSelectedInEditor: () => {},
+        select: (next) => {
+          selection = next;
+        },
+        openSelectedInEditor: () => {
+          void openInEditor(selection, editorSource, (text) =>
+            posted.push({ kind: "error", text }),
+          );
+        },
         openLinkedView: () => {},
         refreshResponsibilities: () => {},
         refreshPanel: () => {},
