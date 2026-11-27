@@ -29,7 +29,24 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.decide.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node tools/scripts/ci-changes.mjs "$EVENT" "$BASE" "$HEAD" >> "$GITHUB_OUTPUT"
+
   check:
+    needs: [changes]
     name: check (typecheck, tests, lint, build)
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 20
@@ -53,6 +70,8 @@ jobs:
         run: node tools/scripts/signal-witness.mjs npx -w @recognizer/app playwright install webkit
 
       - name: Run quality gate
+        env:
+          RECOGNIZER_SKIP_RUST: ${{ needs.changes.outputs.rust == 'true' && '' || '1' }}
         run: node tools/scripts/signal-witness.mjs npm run check:app
 
   layout:

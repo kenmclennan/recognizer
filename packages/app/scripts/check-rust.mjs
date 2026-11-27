@@ -19,6 +19,11 @@ function run(command, args, cwd = root) {
   }
 }
 
+if (process.env.RECOGNIZER_SKIP_RUST) {
+  process.stdout.write("check:rust SKIPPED: no Rust input changed\n");
+  process.exit(0);
+}
+
 const required = Boolean(process.env.CI || process.env.REQUIRE_RUST);
 
 if (!available("cargo")) {
