@@ -9,6 +9,7 @@ import {
   Neighbours,
   type Repository,
 } from "@recognizer/core";
+import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
@@ -17,7 +18,7 @@ import { describingFor } from "./describing-container.js";
 import { InputError } from "./errors.js";
 import { metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
-import { loadFindings, readPolicy } from "./load-findings.js";
+import { loadFindings } from "./load-findings.js";
 import {
   fieldTokens,
   memberHeadTokens,
@@ -252,7 +253,7 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
   const folder = id.replace(/\/+$/, "");
   const row = measureFolders(
     loaded.repository,
-    readPolicy(io, loaded.root),
+    new PolicyAdapter(io).rules(loaded.root),
   ).rows.find((one) => one.id === folder);
 
   if (row === undefined) {
