@@ -64,6 +64,7 @@ export function answerFor(
   command: string,
   args: Record<string, unknown> | undefined,
   upTo?: number,
+  call?: number,
 ): unknown {
   const key = commandKey(command, args);
   const matches = recording.commands.filter(
@@ -73,7 +74,11 @@ export function answerFor(
   );
 
   if (matches.length > 0) {
-    return (matches[matches.length - 1] as RecordedCommand).reply;
+    const ordered = command === "core_call" && args?.op === "scan.start";
+    const nth = ordered && call !== undefined ? call : matches.length;
+
+    return (matches[Math.min(nth, matches.length) - 1] as RecordedCommand)
+      .reply;
   }
 
   if (command === "core_call" && args?.op === "scan.plan") {

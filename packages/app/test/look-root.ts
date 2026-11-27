@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Program } from "../../cli/test/support/index";
 import {
   committedScan,
+  event,
   Gate,
   typescriptScanner,
 } from "../../cli/test/support/index";
@@ -32,9 +33,19 @@ export type LookScenario = {
   files?: Record<string, string | ((commit: string) => string)>;
   programs?: Record<string, Program>;
   origin?: { branch: string; commit: string };
+  ticks?: Record<string, unknown>;
+  armed?: string[];
+  plans?: {
+    mode?: string;
+    ticks?: Record<string, unknown>;
+    scope?: string[] | null;
+    changed?: string[];
+  }[];
   hostEvents?: { event: string; payload: unknown }[];
   stages?: LookStage[];
 };
+
+export type Diagnosis = { code: string; line: string; fix?: string };
 
 export type LookRecording = Recording & { produced: Loaded };
 
@@ -118,16 +129,44 @@ export function scanProgram(
 }
 
 export function heldProgram(program: Program, gate: Gate): Program {
-  return async (call) => {
-    if (call.args[0] === "run") {
+  return (call) => {
+    if (call.args[0] !== "run") {
+      return program(call);
+    }
+
+    return (async () => {
       await Promise.race([gate.wait(), call.whenKilled()]);
 
       if (call.killed) {
         return { started: true, status: 143, stdout: "", stderr: "" };
       }
+
+      return program(call);
+    })();
+  };
+}
+
+export function failingProgram(
+  program: Program,
+  diagnosis?: Diagnosis,
+): Program {
+  return (call) => {
+    if (call.args[0] !== "run") {
+      return program(call);
     }
 
-    return program(call);
+    if (diagnosis !== undefined) {
+      call.stderr(
+        event({
+          event: "diagnosis",
+          code: diagnosis.code,
+          text: diagnosis.line,
+          ...(diagnosis.fix === undefined ? {} : { fix: diagnosis.fix }),
+        }),
+      );
+    }
+
+    return { started: true, status: 1, stdout: "", stderr: "" };
   };
 }
 
@@ -163,6 +202,7 @@ export async function lookRoot(
     ...(scenario.files === undefined ? {} : { files: scenario.files }),
     ...(scenario.programs === undefined ? {} : { programs: scenario.programs }),
     ...(scenario.origin === undefined ? {} : { origin: scenario.origin }),
+    ...(scenario.ticks === undefined ? {} : { ticks: scenario.ticks }),
     record: (command, args, reply, lines) =>
       commands.push({
         command,
@@ -185,7 +225,7 @@ export async function lookRoot(
       describe: false,
       analysis: false,
       ticked: [],
-      armed: ["crap"],
+      armed: scenario.armed ?? ["crap"],
       onlyView: false,
       suites: {},
       folds: [],
@@ -207,6 +247,25 @@ export async function lookRoot(
     ),
     at: root.lines.filter(isEvent).length,
   });
+
+  for (const variant of scenario.plans ?? []) {
+    const asked = {
+      ...planArgs,
+      ...(variant.mode === undefined ? {} : { mode: variant.mode }),
+      ticks: { ...planArgs.ticks, ...variant.ticks },
+      ...(variant.scope === undefined ? {} : { scope: variant.scope }),
+      ...(variant.changed === undefined ? {} : { changed: variant.changed }),
+    };
+
+    commands.push({
+      command: "core_call",
+      args: { op: "scan.plan", args: asked },
+      reply: JSON.parse(
+        JSON.stringify(await root.service.call("scan.plan", asked)),
+      ),
+      at: root.lines.filter(isEvent).length,
+    });
+  }
 
   const marks: Record<string, number> = {};
 
