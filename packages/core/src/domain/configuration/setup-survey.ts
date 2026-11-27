@@ -1,3 +1,5 @@
+import type { AssistantText } from "../assistant-text.js";
+
 export const SURVEY_VERSION = 1;
 
 export type SetupMark = "set-up" | "new" | "gone";
@@ -104,4 +106,5 @@ export interface Survey {
   fixes: SurveyFix[];
   suites: SurveySuite[];
   policy: SurveyPolicy;
+  assistant?: AssistantText;
 }

@@ -93,6 +93,9 @@
         "$ref": "#/$defs/finding"
       }
     },
+    "assistant": {
+      "$ref": "#/$defs/assistant"
+    },
     "principles": {
       "type": "array",
       "items": {
@@ -259,6 +262,32 @@
     }
   },
   "$defs": {
+    "assistant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "program",
+        "account_note",
+        "signed_out_reason",
+        "signed_out_markers",
+        "limit_markers"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "program": { "type": "string", "minLength": 1 },
+        "account_note": { "type": "string", "minLength": 1 },
+        "signed_out_reason": { "type": "string", "minLength": 1 },
+        "signed_out_markers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "limit_markers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "citation": {
       "type": "object",
       "additionalProperties": false,
@@ -1406,6 +1435,7 @@
           "prompt_version": false,
           "prices": false,
           "description": false,
+          "assistant": false,
           "expansion": false,
           "settings_title": false
         }
@@ -1431,6 +1461,7 @@
           "prompt_version": false,
           "prices": false,
           "scan_schema_version": false,
+          "assistant": false,
           "reports_tests": false,
           "setup_survey": false
         }

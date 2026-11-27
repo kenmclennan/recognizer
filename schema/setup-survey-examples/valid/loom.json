@@ -172,5 +172,13 @@
   "policy": {
     "present": false,
     "uncovered": []
+  },
+  "assistant": {
+    "name": "Claude",
+    "program": "claude",
+    "account_note": "Uses your Claude account.",
+    "signed_out_reason": "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.",
+    "signed_out_markers": ["not logged in"],
+    "limit_markers": ["usage limit", "rate limit"]
   }
 }

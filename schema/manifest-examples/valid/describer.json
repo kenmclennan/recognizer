@@ -28,5 +28,13 @@
     "sonnet": { "input": 2, "output": 10 },
     "opus": { "input": 4, "output": 20 }
   },
-  "prompt_version": "prompt-b450a986f729"
+  "prompt_version": "prompt-b450a986f729",
+  "assistant": {
+    "name": "Claude",
+    "program": "claude",
+    "account_note": "Uses your Claude account.",
+    "signed_out_reason": "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.",
+    "signed_out_markers": ["not logged in"],
+    "limit_markers": ["usage limit", "rate limit"]
+  }
 }

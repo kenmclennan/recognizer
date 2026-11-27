@@ -7,6 +7,7 @@ import {
 } from "@recognizer/core";
 
 export {
+  type AssistantText,
   afterFoldToggle,
   afterPanelOpen,
   afterSensorTick,
@@ -31,6 +32,7 @@ export {
   comparePlugins,
   complexityUnmeasured,
   createPlanner,
+  DEFAULT_ASSISTANT_TEXT,
   type DoctorReport,
   type DroppedCard,
   type DroppedRunner,

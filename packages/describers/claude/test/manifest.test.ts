@@ -52,6 +52,21 @@ describe("the manifest verb", () => {
     );
   });
 
+  it("publishes the assistant text the setup wording needs", () => {
+    const printed = JSON.parse(manifest(makeTempDir("manifest-")).stdout);
+
+    expect(printed.assistant).toEqual({
+      name: "Claude",
+      program: "claude",
+      account_note: "Uses your Claude account.",
+      signed_out_reason:
+        "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.",
+      signed_out_markers: ["not logged in"],
+      limit_markers: ["usage limit", "rate limit"],
+    });
+    expect(validate(printed)).toBe(true);
+  });
+
   it("names the version of the prompt file", () => {
     const printed = promptVersion();
 

@@ -185,7 +185,7 @@ describe("the setup wizard model", () => {
 
     controller.back();
     controller.setPolicyMode("ask");
-    await controller.askClaude();
+    await controller.askAssistant();
     expect(wizard(controller).policy.kind).toBe("done");
 
     controller.next();
@@ -196,7 +196,7 @@ describe("the setup wizard model", () => {
     const { controller } = await opened();
 
     controller.setPolicyMode("ask");
-    await controller.askClaude();
+    await controller.askAssistant();
 
     expect(
       buildChanges(LOOM_SURVEY, choicesOf(wizard(controller))).changes.filter(

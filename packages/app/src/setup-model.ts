@@ -324,7 +324,7 @@ export type SetupController = {
   removeEnv(name: string, index: number): void;
   setTool(name: string, on: boolean): void;
   setPolicyMode(mode: "skip" | "ask"): void;
-  askClaude(): Promise<void>;
+  askAssistant(): Promise<void>;
   decide(index: number, decision: "accept" | "reject"): void;
   acceptRemaining(): void;
   setFix(index: number, on: boolean): void;
@@ -566,7 +566,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
       edit((wizard) =>
         wizard.policy.kind === "running" ? {} : { policyMode: mode },
       ),
-    async askClaude() {
+    async askAssistant() {
       if (state.kind !== "wizard" || state.policy.kind === "running") {
         return;
       }

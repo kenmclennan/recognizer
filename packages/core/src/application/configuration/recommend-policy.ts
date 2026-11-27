@@ -1,3 +1,8 @@
+import {
+  type AssistantText,
+  assistantTextOf,
+  DEFAULT_ASSISTANT_TEXT,
+} from "../../domain/assistant-text.js";
 import { Repository } from "../../domain/repository.js";
 import type { ConfigurationPorts } from "./internal/configuration-ports.js";
 import { recommendCards } from "./internal/recommend-cards.js";
@@ -5,11 +10,6 @@ import type { AssistantAllow, AssistantResult } from "./ports/assistant.js";
 import { NO_STOP, type SetupStop } from "./setup-stop.js";
 
 const STDERR_CHARS = 2000;
-const LIMIT_TEXT = "usage limit";
-const RATE_LIMIT_TEXT = "rate limit";
-const SIGNED_OUT_TEXT = "not logged in";
-const SIGNED_OUT_REASON =
-  "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.";
 
 export const ASSISTANT_ALLOW: AssistantAllow = {
   tools: ["Read", "Glob", "Grep"],
@@ -56,7 +56,10 @@ function tail(text: string): string {
   return Array.from(text).slice(-STDERR_CHARS).join("");
 }
 
-export function outcomeOf(result: AssistantResult): RecommendOutcome {
+export function outcomeOf(
+  result: AssistantResult,
+  words: AssistantText,
+): RecommendOutcome {
   const facts = result.answer;
 
   if (facts !== null) {
@@ -77,9 +80,11 @@ export function outcomeOf(result: AssistantResult): RecommendOutcome {
       status: "failed",
       reason:
         text === null
-          ? "claude answered without a proposal"
-          : text.toLowerCase().includes(SIGNED_OUT_TEXT)
-            ? SIGNED_OUT_REASON
+          ? `${words.program} answered without a proposal`
+          : words.signed_out_markers.some((marker) =>
+                text.toLowerCase().includes(marker),
+              )
+            ? words.signed_out_reason
             : text,
       subtype: facts.subtype,
       costUsd: facts.costUsd,
@@ -89,13 +94,13 @@ export function outcomeOf(result: AssistantResult): RecommendOutcome {
 
   const detail = result.stderr;
   const lower = detail.toLowerCase();
-  const limited = lower.includes(LIMIT_TEXT) || lower.includes(RATE_LIMIT_TEXT);
+  const limited = words.limit_markers.some((marker) => lower.includes(marker));
 
   return {
     status: "failed",
     reason: limited
-      ? `claude hit a usage or rate limit: ${tail(detail)}`
-      : `claude exited ${result.exit === null ? "by signal" : result.exit} without an answer: ${tail(detail)}`,
+      ? `${words.program} hit a usage or rate limit: ${tail(detail)}`
+      : `${words.program} exited ${result.exit === null ? "by signal" : result.exit} without an answer: ${tail(detail)}`,
     subtype: null,
     costUsd: null,
     durationMs: null,
@@ -115,6 +120,9 @@ export async function recommendPolicy(
       reason: status.refusal ?? "a scan is already running",
     };
   }
+
+  const words =
+    assistantTextOf(ports.reads.describers()) ?? DEFAULT_ASSISTANT_TEXT;
 
   const running = ports.assistant.ask({
     root: input.root,
@@ -137,7 +145,7 @@ export async function recommendPolicy(
       status: "unavailable",
       reason:
         result.stderr.trim() === ""
-          ? "claude could not start"
+          ? `${words.program} could not start`
           : result.stderr.trim(),
     };
   }
@@ -146,7 +154,7 @@ export async function recommendPolicy(
     return { status: "cancelled" };
   }
 
-  const outcome = outcomeOf(result);
+  const outcome = outcomeOf(result, words);
 
   if (outcome.status !== "proposal") {
     return outcome;
