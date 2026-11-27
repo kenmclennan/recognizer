@@ -6,7 +6,6 @@ import {
   type DocumentFreshness,
   Repository,
   type SuiteRunning,
-  shortAge,
 } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
 import {
@@ -774,7 +773,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
 
       const current =
         row.state.kind === "current" && row.state.at !== null
-          ? { icon: full.icon, text: shortAge(input.now - row.state.at) }
+          ? { icon: full.icon, text: ageText(row.state.at, input.now, "short") }
           : full;
       const isTicked = structure
         ? input.ticks.analysis

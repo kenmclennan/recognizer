@@ -27,46 +27,47 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-export function shortAge(ms: number): string {
-  const elapsed = Math.max(0, ms);
+export type AgeStyle = "long" | "short";
+
+const AGE_WORDS = {
+  long: {
+    now: "just now",
+    text: (count: number, unit: string) =>
+      `${count} ${unit}${count === 1 ? "" : "s"} ago`,
+    minute: "minute",
+    hour: "hour",
+    day: "day",
+  },
+  short: {
+    now: "now",
+    text: (count: number, unit: string) => `${count}${unit}`,
+    minute: "m",
+    hour: "h",
+    day: "d",
+  },
+} as const;
+
+export function ageText(
+  scannedAt: number,
+  now: number,
+  style: AgeStyle = "long",
+): string {
+  const words = AGE_WORDS[style];
+  const elapsed = Math.max(0, now - scannedAt);
 
   if (elapsed < MINUTE) {
-    return "now";
+    return words.now;
   }
 
   if (elapsed < HOUR) {
-    return `${Math.floor(elapsed / MINUTE)}m`;
+    return words.text(Math.floor(elapsed / MINUTE), words.minute);
   }
 
   if (elapsed < DAY) {
-    return `${Math.floor(elapsed / HOUR)}h`;
+    return words.text(Math.floor(elapsed / HOUR), words.hour);
   }
 
-  return `${Math.floor(elapsed / DAY)}d`;
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
-export function ageText(scannedAt: number, now: number): string {
-  const minutes = Math.floor(Math.max(0, now - scannedAt) / 60000);
-
-  if (minutes < 1) {
-    return "just now";
-  }
-
-  if (minutes < 60) {
-    return `${plural(minutes, "minute")} ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) {
-    return `${plural(hours, "hour")} ago`;
-  }
-
-  return `${plural(Math.floor(hours / 24), "day")} ago`;
+  return words.text(Math.floor(elapsed / DAY), words.day);
 }
 
 export function suiteStanding(result: SuiteResult): SuiteStanding {
@@ -109,7 +110,7 @@ export function suiteState(
     return { kind: "never", text: "never", title: "never run" };
   }
 
-  const short = standing.at === null ? "" : shortAge(now - standing.at);
+  const short = standing.at === null ? "" : ageText(standing.at, now, "short");
   const age = standing.at === null ? "" : ageText(standing.at, now);
 
   switch (standing.kind) {

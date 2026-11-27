@@ -1,9 +1,9 @@
 import {
+  ageText,
   type SuiteState as CoreSuiteState,
   suiteState as coreSuiteState,
   type SuiteRunning,
   type SuiteStanding,
-  shortAge,
 } from "@recognizer/core";
 import type { IconName } from "./icons";
 import type { SuiteRef } from "./scan-panel-model";
@@ -100,7 +100,7 @@ export function foldSummary(input: {
   return {
     icon: "circle-check",
     tone: "ok",
-    text: prefixed(shortAge(now - oldest), results.length, all),
+    text: prefixed(ageText(oldest, now, "short"), results.length, all),
   };
 }
 
