@@ -98,6 +98,37 @@ describe("suite states", () => {
   });
 });
 
+describe("stale suites", () => {
+  it("a_suite_with_changed_covered_files_is_stale", () => {
+    expect(suiteState(standing(), NOW, null, 4)).toEqual({
+      kind: "stale",
+      text: "4 out of date",
+      title: "4 files out of date, ran 3 hours ago",
+    });
+    expect(suiteState(standing(), NOW, null, 1).title).toBe(
+      "1 file out of date, ran 3 hours ago",
+    );
+  });
+
+  it("keeps a failed, partial, never or running suite as it is when files changed", () => {
+    for (const kind of ["failed", "partial", "never"] as const) {
+      expect(suiteState(standing({ kind }), NOW, null, 3).kind).toBe(kind);
+    }
+
+    expect(suiteState(undefined, NOW, null, 3).kind).toBe("never");
+    expect(
+      suiteState(standing(), NOW, { suite: "unit", done: 1, total: 2 }, 3).kind,
+    ).toBe("running");
+  });
+
+  it("leaves an ok suite with nothing behind as current", () => {
+    expect(suiteState(standing(), NOW, null, 0)).toEqual(
+      suiteState(standing(), NOW),
+    );
+    expect(suiteState(standing(), NOW).kind).toBe("ok");
+  });
+});
+
 describe("suite standings", () => {
   const result = (over: Partial<SuiteResult> = {}): SuiteResult => ({
     name: "unit",

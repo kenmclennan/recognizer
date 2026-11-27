@@ -5,6 +5,7 @@ import {
   type SuiteRunning,
   suiteRows,
   suiteStanding,
+  suitesBehind,
   tickedResults,
 } from "../../src/index.js";
 
@@ -138,6 +139,7 @@ describe("suite rows", () => {
       running: null,
       locked: false,
       now: NOW,
+      behind: new Map(),
     });
 
     expect(rows.length).toBeGreaterThan(0);
@@ -158,6 +160,7 @@ describe("suite rows", () => {
       running: null,
       locked: true,
       now: NOW,
+      behind: new Map(),
     });
 
     expect(rows.length).toBe(3);
@@ -174,6 +177,7 @@ describe("suite rows", () => {
       running: { suite: "integration", done: 1, total: 4 },
       locked: true,
       now: NOW,
+      behind: new Map(),
     });
 
     expect(rows.map((one) => one.state.kind)).toEqual(["ok", "running", "ok"]);
@@ -204,5 +208,99 @@ describe("ticked results", () => {
 
   it("returns nothing when no suite is ticked", () => {
     expect(tickedResults(suites, [], results)).toEqual([]);
+  });
+});
+
+describe("suites behind", () => {
+  const configured = [
+    { name: "root", directory: "" },
+    { name: "app", directory: "packages/app" },
+  ];
+  const files = ["a.ts", "packages/app/b.ts"];
+
+  it("gives a file to the suite whose directory is the longest that contains it", () => {
+    const behind = suitesBehind({ suites: configured, files, current: [] });
+
+    expect(behind.get("root")).toBe(1);
+    expect(behind.get("app")).toBe(1);
+  });
+
+  it("treats an empty directory and a dot as covering every file", () => {
+    const dot = [{ name: "all", directory: "." }];
+
+    expect(suitesBehind({ suites: dot, files, current: [] }).get("all")).toBe(
+      2,
+    );
+    expect(
+      suitesBehind({
+        suites: [configured[0] as never],
+        files,
+        current: [],
+      }).get("root"),
+    ).toBe(2);
+  });
+
+  it("counts only the files absent from current, never all or none of a mixed set", () => {
+    const many = [
+      "packages/app/b.ts",
+      "packages/app/c.ts",
+      "packages/app/d.ts",
+    ];
+    const behind = suitesBehind({
+      suites: configured,
+      files: many,
+      current: new Set(["packages/app/b.ts"]),
+    });
+
+    expect(behind.get("app")).toBe(2);
+    expect(behind.get("root")).toBe(0);
+  });
+
+  it("returns 0 for a suite covering nothing", () => {
+    const behind = suitesBehind({
+      suites: [{ name: "web", directory: "web" }],
+      files,
+      current: [],
+    });
+
+    expect(behind.get("web")).toBe(0);
+  });
+
+  it("covers a file whose path equals the directory, and ignores a trailing slash and a name that only shares a prefix", () => {
+    const behind = suitesBehind({
+      suites: [
+        { name: "exact", directory: "packages/app/b.ts" },
+        { name: "slashed", directory: "packages/app/" },
+        { name: "prefix", directory: "packages/ap" },
+      ],
+      files: ["packages/app/b.ts"],
+      current: [],
+    });
+
+    expect(behind.get("exact")).toBe(1);
+    expect(behind.get("slashed")).toBe(0);
+    expect(behind.get("prefix")).toBe(0);
+  });
+
+  it("carries stale on exactly the rows whose suite has covered files behind", () => {
+    const rows = suiteRows({
+      sensor: "crap",
+      suites: [
+        { name: "root", language: "ts" },
+        { name: "app", language: "ts" },
+      ],
+      ticked: [],
+      results: [
+        suiteStanding(ok("root", HOUR)),
+        suiteStanding(ok("app", HOUR)),
+      ],
+      running: null,
+      locked: false,
+      now: NOW,
+      behind: new Map([["app", 2]]),
+    });
+
+    expect(rows.map((one) => one.state.kind)).toEqual(["ok", "stale"]);
+    expect(rows[1]?.state.text).toBe("2 out of date");
   });
 });

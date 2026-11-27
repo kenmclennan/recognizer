@@ -585,6 +585,33 @@ const suites = (ticks: Record<string, unknown> = {}, ran = false): Made => ({
   ...(ran ? { rest: { stages: RAN } } : {}),
 });
 
+const STALE_CONFIG = `${CONFIG}tests:
+  - name: app-suite
+    language: python
+    directory: app
+    command: pytest
+    coverage: { path: coverage.xml, format: lcov }
+  - name: tools-suite
+    language: python
+    directory: tools
+    command: pytest
+    coverage: { path: coverage.xml, format: lcov }
+`;
+const staleDoc = (commit: string) =>
+  JSON.stringify({
+    findings_version: 2,
+    sensor: { name: "crap", version: "1" },
+    commit,
+    modified: false,
+    settings: {},
+    inputs: { [IDS[0] as string]: HC, [IDS[1] as string]: HB },
+    findings: [],
+    suites: [
+      { name: "app-suite", status: "ok", ran_at: isoAgo(3 * 3600000) },
+      { name: "tools-suite", status: "ok", ran_at: isoAgo(3 * 3600000) },
+    ],
+  });
+
 const FAILED_AT = "2026-11-02T09:00:00.000Z";
 const runRecord = (diagnosis: unknown) =>
   JSON.stringify({
@@ -675,6 +702,10 @@ const SCENARIOS3 = (): Record<string, LookScenario> => ({
     },
   }),
   suitesRan: made(suites({}, true)),
+  suitesStale: made({
+    config: STALE_CONFIG,
+    files: { [resultFile("crap")]: staleDoc },
+  }),
   refused: made(restart(REASONS["mutation-tests-failing"], msAfter(-1000))),
   okNewer: made(restart(null, msAfter(-1000))),
   copy: made(restart(REASONS["crap-no-coverage"], msAfter(-1000))),
@@ -783,6 +814,7 @@ import { pageAnswers } from ${JSON.stringify(here("../test/look-answers.ts"))};
 import { afterTickChanges } from "@recognizer/core";
 import REASONS from ${JSON.stringify(here("../../../fixtures/sensor-reasons/states.json"))};
 import { PANEL_LIMITS } from ${JSON.stringify(here("panel-widths.ts"))};
+import { icon as drawIcon } from ${JSON.stringify(here("../src/icons.ts"))};
 ${FAKE_WORKER}
 
 const recordings = ${JSON.stringify(recordings)};
@@ -1252,6 +1284,16 @@ await group(["stopWhileRunning","modeWhileRunning","ticksWhileRunning","ticksAft
 `;
 
 const GROUPS3B = `
+await group(["suiteStale"], async () => {
+  const stale = await draw("suitesStale");
+  await stale.openScan();
+  click(stale.q('.scan-row[data-sensor="crap"] .scan-fold'));
+  await tick();
+  const styleOf = (row) => { const state = row.querySelector(".scan-state"); return { icon: state.querySelector("svg").innerHTML, className: state.className, text: row.querySelector(".scan-state-text").textContent, title: state.title }; };
+  const suiteRow = (name) => stale.q('.scan-suite[data-sensor="crap"][data-suite="' + name + '"]');
+  facts.suiteStale = { alert: drawIcon("circle-alert").innerHTML, behind: styleOf(suiteRow("app-suite")), current: styleOf(suiteRow("tools-suite")), behindKind: suiteRow("app-suite").dataset.state, currentKind: suiteRow("tools-suite").dataset.state };
+});
+
 await group(["suiteStart","suiteOpened","suiteFoldWritten","suiteAfterTick"], async () => {
   const sm = await draw("suites");
   await sm.openScan();
@@ -1861,6 +1903,19 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       ticked: false,
       indeterminate: true,
     });
+  });
+
+  it("draws a suite whose covered file changed in the out-of-date style of the sensor row and leaves an up-to-date suite ok", () => {
+    const r = f.suiteStale;
+
+    expect(r.currentKind).toBe("ok");
+    expect(r.current.title).toMatch(/^current, /);
+    expect(r.behindKind).toBe("stale");
+    expect(r.behind.text).toBe("1 out of date");
+    expect(r.behind.title).toMatch(/^1 file out of date, ran /);
+    expect(r.behind.icon).toBe(r.alert);
+    expect(r.behind.className).toContain("warn");
+    expect(r.current.icon).not.toBe(r.behind.icon);
   });
 
   it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {

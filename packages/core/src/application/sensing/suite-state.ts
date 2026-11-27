@@ -17,7 +17,7 @@ export type SuiteRunning = {
 };
 
 export type SuiteState = {
-  kind: SuiteStanding["kind"] | "running";
+  kind: SuiteStanding["kind"] | "running" | "stale";
   text: string;
   title: string;
 };
@@ -93,6 +93,7 @@ export function suiteState(
   standing: SuiteStanding | undefined,
   now: number,
   running: SuiteRunning | null = null,
+  behind = 0,
 ): SuiteState {
   if (running !== null) {
     const counted = running.done !== null && running.total !== null;
@@ -115,6 +116,14 @@ export function suiteState(
 
   switch (standing.kind) {
     case "ok":
+      if (behind > 0) {
+        return {
+          kind: "stale",
+          text: `${behind} out of date`,
+          title: `${behind} ${behind === 1 ? "file" : "files"} out of date, ran ${age}`,
+        };
+      }
+
       return { kind: "ok", text: short, title: `current, ${age}` };
     case "failed":
       return {

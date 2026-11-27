@@ -8,6 +8,7 @@ import {
   Repository,
   type SuiteRunning,
   suiteRows,
+  suitesBehind,
   tickedResults,
 } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
@@ -750,6 +751,16 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           }),
         );
         const tick = sensorTickState(input.ticks, row.key, names);
+        const facts = input.freshness?.[row.key];
+        const suitesOut =
+          statuses.find((one) => one.name === row.key)?.measured ===
+            undefined || facts === undefined
+            ? new Map<string, number>()
+            : suitesBehind({
+                suites: input.config?.tests ?? [],
+                files: input.lines.modules,
+                current: facts.current,
+              });
         const behind =
           row.state.kind === "out-of-date" && summary.tone === "ok";
 
@@ -770,6 +781,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
               running: live,
               locked,
               now: input.now,
+              behind: suitesOut,
             }).map((one) => ({ ...one, state: lookedState(one.state) })),
           },
         };

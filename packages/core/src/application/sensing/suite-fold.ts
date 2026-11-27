@@ -84,6 +84,7 @@ export function suiteRows(input: {
   running: SuiteRunning | null;
   locked: boolean;
   now: number;
+  behind: ReadonlyMap<string, number>;
 }): SuiteRowFacts[] {
   return input.suites.map(({ name, language }) => ({
     sensor: input.sensor,
@@ -95,8 +96,53 @@ export function suiteRows(input: {
       input.results?.find((result) => result.name === name),
       input.now,
       input.running?.suite === name ? input.running : null,
+      input.behind.get(name) ?? 0,
     ),
   }));
+}
+
+function trimmed(directory: string): string {
+  return directory === "." ? "" : directory.replace(/\/+$/, "");
+}
+
+function covers(directory: string, file: string): boolean {
+  const root = trimmed(directory);
+
+  return root === "" || file === root || file.startsWith(`${root}/`);
+}
+
+export function suitesBehind(input: {
+  suites: readonly { name: string; directory: string }[];
+  files: readonly string[];
+  current: ReadonlySet<string> | readonly string[];
+}): Map<string, number> {
+  const fresh = new Set(input.current);
+  const behind = new Map(input.suites.map(({ name }) => [name, 0]));
+
+  for (const file of input.files) {
+    if (fresh.has(file)) {
+      continue;
+    }
+
+    let owner: { name: string; length: number } | null = null;
+
+    for (const { name, directory } of input.suites) {
+      const length = trimmed(directory).length;
+
+      if (
+        covers(directory, file) &&
+        (owner === null || length > owner.length)
+      ) {
+        owner = { name, length };
+      }
+    }
+
+    if (owner !== null) {
+      behind.set(owner.name, (behind.get(owner.name) ?? 0) + 1);
+    }
+  }
+
+  return behind;
 }
 
 export function tickedResults(
