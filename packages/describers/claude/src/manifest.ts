@@ -6,6 +6,16 @@ export const PROTOCOL = 4;
 export const INSTALL =
   "brew upgrade kenmclennan/tap/recognizer-describe-claude || brew install kenmclennan/tap/recognizer-describe-claude";
 
+export const ASSISTANT = {
+  name: "Claude",
+  program: "claude",
+  account_note: "Uses your Claude account.",
+  signed_out_reason:
+    "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.",
+  signed_out_markers: ["not logged in"],
+  limit_markers: ["usage limit", "rate limit"],
+};
+
 const PACKAGE_FILE = new URL("../package.json", import.meta.url);
 
 export function manifest() {
@@ -45,6 +55,7 @@ export function manifest() {
       opus: { input: 4, output: 20 },
     },
     prompt_version: promptVersion(),
+    assistant: ASSISTANT,
   };
 }
 

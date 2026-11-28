@@ -183,6 +183,7 @@ export * from "./domain/analysis/stored-structure.js";
 export * from "./domain/analysis/test-importers.js";
 export * from "./domain/analysis/tests-hash/bytes.js";
 export * from "./domain/analysis/unknown-files.js";
+export * from "./domain/assistant-text.js";
 export * from "./domain/config-document.js";
 export * from "./domain/config-repository.js";
 export * from "./domain/configuration/app-settings.js";

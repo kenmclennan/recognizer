@@ -61,6 +61,40 @@ const CONFIG_PATH = `${ROOT}/.recognizer/config.yaml`;
 const POLICY_PATH = `${ROOT}/.recognizer/policy.yaml`;
 
 describe("surveySetup", () => {
+  it("carries the assistant text a describer publishes and omits it otherwise", async () => {
+    const text = {
+      name: "Mira",
+      program: "mira",
+      account_note: "Billed to your Mira plan.",
+      signed_out_reason: "Sign in to Mira.",
+      signed_out_markers: ["signed out"],
+      limit_markers: ["quota"],
+    };
+    const published = worldOf();
+
+    published.ports.reads = {
+      ...published.ports.reads,
+      describers: () => [
+        { name: "mira", display: "Mira", runs_tests: false, assistant: text },
+      ],
+    };
+
+    expect(
+      (await surveySetup(published.ports, { root: ROOT })).assistant,
+    ).toEqual(text);
+
+    const bare = worldOf();
+
+    bare.ports.reads = {
+      ...bare.ports.reads,
+      describers: () => [{ name: "mira", display: "Mira", runs_tests: false }],
+    };
+
+    expect("assistant" in (await surveySetup(bare.ports, { root: ROOT }))).toBe(
+      false,
+    );
+  });
+
   it("the survey is identical on two runs and lists the runners tools and checks", async () => {
     const world = worldOf();
 

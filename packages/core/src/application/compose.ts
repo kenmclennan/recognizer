@@ -534,6 +534,9 @@ export function setupReadsOver({
           ? {}
           : { description: describer.manifest.description }),
         runs_tests: false,
+        ...(describer.manifest.assistant === undefined
+          ? {}
+          : { assistant: describer.manifest.assistant }),
       })),
     diagnose: (root) => diagnose(plugins, root, false),
   };

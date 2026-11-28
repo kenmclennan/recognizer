@@ -261,7 +261,7 @@ function snap(modal, name) {
   await settle();
   snap(rerun, "rerun-policy");
   rerun.controller.setPolicyMode("ask");
-  await rerun.controller.askClaude();
+  await rerun.controller.askAssistant();
   await settle();
   rerun.controller.acceptRemaining();
   rerun.controller.setLimit("long_function", 31);
@@ -409,6 +409,27 @@ function snap(modal, name) {
   shot("apply-finished", stepping);
   stepping.close();
 
+
+  async function policyFor(name, assistant) {
+    const base = fakeSetup().surveyRead.survey;
+    const { assistant: _published, ...rest } = base;
+    const survey = assistant === undefined ? rest : { ...rest, assistant };
+    const other = fakeSetup({ surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR } });
+    const modal = openSetupModal({ port: other });
+    await modal.ready;
+    await settle();
+    for (let i = 0; i < 3; i++) { modal.controller.next(); await settle(); }
+    modal.element.querySelector('[data-control="policy-ask"]').closest(".sw-row").querySelector(".sw-what").click();
+    await settle();
+    snap(modal, name + "-choice");
+    other.gate = new Promise(() => {});
+    [...modal.element.querySelectorAll("button")].find((b) => b.textContent.startsWith("Ask ")).click();
+    await settle();
+    snap(modal, name + "-running");
+    modal.close();
+  }
+  await policyFor("policy-mira", { name: "Mira", program: "mira", account_note: "Billed to your Mira plan.", signed_out_reason: "Sign in to Mira.", signed_out_markers: [], limit_markers: [] });
+  await policyFor("policy-bare", undefined);
 
   facts.done = {};
   const handProblem = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix: { text: "Rename one of the suites", command: null }, severity: "problem" };
@@ -963,6 +984,29 @@ describe.skipIf(webkit === undefined)(
       );
       expect(f.screens["policy-cards"]?.groups).toEqual(["Left out", "Rules"]);
       expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
+    });
+
+    it("the policy step names the published assistant and its account note, and no vendor", () => {
+      const choice = f.screens["policy-mira-choice"]?.text ?? "";
+
+      expect(choice).toContain("Ask Mira for recommendations");
+      expect(choice).toContain("Billed to your Mira plan.");
+      expect(choice).toContain("Mira reads the imports and recommends parts");
+      expect(f.screens["policy-mira-running"]?.text).toContain(
+        "Mira is reading the imports",
+      );
+
+      for (const key of ["policy-mira-choice", "policy-mira-running"]) {
+        expect(f.screens[key]?.text).not.toContain("Claude");
+        expect(f.screens[key]?.text).not.toContain("Your Claude account");
+      }
+    });
+
+    it("the policy step shows the neutral name when no assistant text is published", () => {
+      expect(f.screens["policy-bare-running"]?.text).toContain(
+        "Assistant is reading the imports",
+      );
+      expect(f.screens["policy-bare-choice"]?.text).not.toContain("Claude");
     });
 
     it("files note names what changed", () => {

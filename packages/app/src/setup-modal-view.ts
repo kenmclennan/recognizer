@@ -1,4 +1,5 @@
 import {
+  DEFAULT_ASSISTANT_TEXT,
   type PlannedChange,
   type PolicyCard,
   quoteCommand,
@@ -1030,12 +1031,13 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   }
 
   function policyStep(state: WizardState) {
+    const words = state.survey.assistant ?? DEFAULT_ASSISTANT_TEXT;
     body.append(
       el("h2", "", "Dependency policy"),
       el(
         "p",
         "sw-lead-text",
-        "A policy names the parts of your code and which may import which. Structural analysis then reports every import that breaks it as a violation, and recognizer check fails CI when a new one appears. Every codebase is shaped differently, so Claude reads this one's imports and recommends parts and rules. You accept or reject each one; only what you accept is saved.",
+        `A policy names the parts of your code and which may import which. Structural analysis then reports every import that breaks it as a violation, and recognizer check fails CI when a new one appears. Every codebase is shaped differently, so ${words.name} reads this one's imports and recommends parts and rules. You accept or reject each one; only what you accept is saved.`,
       ),
     );
 
@@ -1046,7 +1048,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         row(
           "◌",
           [
-            el("div", "sw-what", "Claude is reading the imports"),
+            el("div", "sw-what", `${words.name} is reading the imports`),
             el("div", "sw-progress sw-mono", run.lines.join("\n")),
           ],
           [
@@ -1072,14 +1074,14 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
           controller.acceptRemaining(),
         ),
         button("Ask again", "sw-link", () => {
-          void controller.askClaude();
+          void controller.askAssistant();
         }),
       );
       body.append(
         el(
           "p",
           "sw-lead-text",
-          `Claude recommends ${entries.length} ${entries.length === 1 ? "entry" : "entries"}. Accept or reject each one; only what you accept is saved.`,
+          `${words.name} recommends ${entries.length} ${entries.length === 1 ? "entry" : "entries"}. Accept or reject each one; only what you accept is saved.`,
         ),
         bar,
       );
@@ -1132,9 +1134,15 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       [
         "ask",
         kept
-          ? "Ask Claude to recommend changes"
-          : "Ask Claude for recommendations",
-        "Claude reads the imports and recommends parts and rules, each with the imports behind it. Uses your Claude account. Nothing is saved until you accept it and apply.",
+          ? `Ask ${words.name} to recommend changes`
+          : `Ask ${words.name} for recommendations`,
+        [
+          `${words.name} reads the imports and recommends parts and rules, each with the imports behind it.`,
+          words.account_note,
+          "Nothing is saved until you accept it and apply.",
+        ]
+          .filter((part) => part !== "")
+          .join(" "),
       ],
     ];
 
@@ -1164,8 +1172,8 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
       if (id === "ask" && state.policyMode === "ask") {
         main.push(
-          button("Ask Claude", "sw-btn sw-small sw-primary", () => {
-            void controller.askClaude();
+          button(`Ask ${words.name}`, "sw-btn sw-small sw-primary", () => {
+            void controller.askAssistant();
           }),
         );
       }

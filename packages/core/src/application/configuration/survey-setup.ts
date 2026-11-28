@@ -1,3 +1,4 @@
+import { assistantTextOf } from "../../domain/assistant-text.js";
 import {
   SURVEY_VERSION,
   type Survey,
@@ -83,11 +84,13 @@ export async function surveySetup(
     new Set(suites.map((suite) => suite.name)),
     publishedValues(ports, answers, root),
   );
+  const describers = ports.reads.describers();
   const checks = checksOf(document, configured, {
     sensors: ports.reads.sensors(),
-    describers: ports.reads.describers(),
+    describers,
     keys: ports.keys.entries(),
   });
+  const assistant = assistantTextOf(describers);
   const policyPresent = ports.files.exists(
     joinPath(root, ".recognizer", "policy.yaml"),
   );
@@ -117,5 +120,6 @@ export async function surveySetup(
     fixes: fixesOf(ports.reads.diagnose(root), checks),
     suites,
     policy: policyOf(policyPresent, readPolicy(ports, root), scans),
+    ...(assistant === null ? {} : { assistant }),
   };
 }

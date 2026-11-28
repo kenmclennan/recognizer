@@ -1,3 +1,4 @@
+import type { AssistantText } from "../assistant-text.js";
 import type { Principle } from "../principles.js";
 import type { FindingEntry } from "./sentence.js";
 
@@ -44,6 +45,7 @@ export interface Manifest {
   metrics?: unknown[];
   findings?: FindingEntry[];
   principles?: Principle[];
+  assistant?: AssistantText;
   runs_tests?: boolean;
   suite_keys?: { section: unknown; keys: unknown[] };
   placeholders?: Record<string, PlaceholderDeclaration>;

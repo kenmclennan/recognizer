@@ -1,12 +1,45 @@
 import { describe, expect, it } from "vitest";
 import {
   type AssistantResult,
-  outcomeOf,
+  type AssistantText,
+  DEFAULT_ASSISTANT_TEXT,
+  outcomeOf as outcomeWith,
   recommendPolicy,
 } from "../../src/index.js";
 import { PROPOSAL } from "../fakes/fake-assistant.js";
 import { ManualStop } from "./setup-run-world.js";
 import { ROOT, worldOf } from "./world.js";
+
+const CLAUDE_TEXT: AssistantText = {
+  name: "Claude",
+  program: "claude",
+  account_note: "Uses your Claude account.",
+  signed_out_reason:
+    "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.",
+  signed_out_markers: ["not logged in"],
+  limit_markers: ["usage limit", "rate limit"],
+};
+
+function outcomeOf(facts: AssistantResult, text: AssistantText = CLAUDE_TEXT) {
+  return outcomeWith(facts, text);
+}
+
+function describingWith(
+  world: ReturnType<typeof worldOf>,
+  assistant: AssistantText | undefined,
+) {
+  world.ports.reads = {
+    ...world.ports.reads,
+    describers: () => [
+      {
+        name: "claude",
+        display: "Claude",
+        runs_tests: false,
+        ...(assistant === undefined ? {} : { assistant }),
+      },
+    ],
+  };
+}
 
 const ask = {
   root: ROOT,
@@ -97,6 +130,55 @@ describe("recommendPolicy", () => {
     });
   });
 
+  it("with no published text no sign-out or limit is recognised and the program is neutral", () => {
+    const limited = outcomeWith(
+      result({ exit: 1, stderr: "Claude usage limit reached" }),
+      DEFAULT_ASSISTANT_TEXT,
+    );
+
+    expect(limited.status === "failed" && limited.reason).toBe(
+      "the assistant exited 1 without an answer: Claude usage limit reached",
+    );
+
+    const signedOut = outcomeWith(
+      result({
+        exit: 1,
+        answer: answer({
+          structured: null,
+          isError: true,
+          text: "Not logged in",
+        }),
+      }),
+      DEFAULT_ASSISTANT_TEXT,
+    );
+
+    expect(signedOut.status === "failed" && signedOut.reason).toBe(
+      "Not logged in",
+    );
+  });
+
+  it("reads the sign-out markers and reason it is given", () => {
+    const outcome = outcomeWith(
+      result({
+        exit: 1,
+        answer: answer({
+          structured: null,
+          isError: true,
+          text: "Please sign in",
+        }),
+      }),
+      {
+        ...DEFAULT_ASSISTANT_TEXT,
+        signed_out_markers: ["please sign in"],
+        signed_out_reason: "Sign in first.",
+      },
+    );
+
+    expect(outcome.status === "failed" && outcome.reason).toBe(
+      "Sign in first.",
+    );
+  });
+
   it("keeps the last 2000 characters of stderr", () => {
     const outcome = outcomeOf(
       result({ exit: 2, stderr: `${"a".repeat(2500)}END` }),
@@ -180,8 +262,30 @@ describe("recommendPolicy", () => {
     expect(world.fakes.assistant.asked).toEqual([]);
   });
 
+  it("the failure wording comes from the published text and falls back to the neutral default", async () => {
+    const published = worldOf();
+
+    describingWith(published, CLAUDE_TEXT);
+    published.fakes.assistant.next = result({ exit: 2, stderr: "boom" });
+
+    expect(await recommendPolicy(published.ports, ask)).toMatchObject({
+      reason: "claude exited 2 without an answer: boom",
+    });
+
+    const bare = worldOf();
+
+    describingWith(bare, undefined);
+    bare.fakes.assistant.next = result({ exit: 2, stderr: "boom" });
+
+    expect(await recommendPolicy(bare.ports, ask)).toMatchObject({
+      reason: "the assistant exited 2 without an answer: boom",
+    });
+  });
+
   it("is unavailable when the assistant does not start", async () => {
     const world = worldOf();
+
+    describingWith(world, CLAUDE_TEXT);
 
     world.fakes.assistant.next = result({
       started: false,
@@ -191,6 +295,13 @@ describe("recommendPolicy", () => {
     expect(await recommendPolicy(world.ports, ask)).toEqual({
       status: "unavailable",
       reason: "claude could not start: not found",
+    });
+
+    world.fakes.assistant.next = result({ started: false, stderr: " " });
+
+    expect(await recommendPolicy(world.ports, ask)).toEqual({
+      status: "unavailable",
+      reason: "claude could not start",
     });
   });
 

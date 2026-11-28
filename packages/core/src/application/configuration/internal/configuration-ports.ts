@@ -1,3 +1,4 @@
+import type { AssistantText } from "../../../domain/assistant-text.js";
 import type { ConfigRepository } from "../../../domain/config-repository.js";
 import type { LanguageRule } from "../../../domain/language-rule.js";
 import type { PolicyRepository } from "../../../domain/policy-repository.js";
@@ -22,6 +23,7 @@ export interface InstalledCheck {
   display: string;
   description?: string;
   runs_tests: boolean;
+  assistant?: AssistantText;
 }
 
 export interface SetupReads {
