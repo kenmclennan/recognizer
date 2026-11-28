@@ -403,7 +403,11 @@ describe("sense and measure", () => {
   async function sensing(content: string, ...args: string[]) {
     const fake = fakeIo({
       commit: COMMIT,
-      files: { [`${ROOT}/.recognizer/config.yaml`]: REGISTER },
+      files: {
+        [`${ROOT}/.recognizer/config.yaml`]: REGISTER,
+        [`${ROOT}/a.py`]: "",
+      },
+      scanners: { [PYTHON]: { output: scanJson(2, 1) } },
       programs: {
         "fake-sensor": (argv, files) => {
           files.set(argv[argv.length - 1] as string, content);
@@ -438,10 +442,13 @@ describe("sense and measure", () => {
     expect(saved.by).toBe("Claude");
     expect(saved.phases.map((one: { phase: string }) => one.phase)).toEqual([
       "extract",
+      "structure",
       "sense",
     ]);
 
-    const sensed = saved.phases[1].entries;
+    const sensed = saved.phases.find(
+      (one: { phase: string }) => one.phase === "sense",
+    ).entries;
 
     expect(sensed).toHaveLength(1);
     expect(sensed[0]).toMatchObject({
@@ -462,7 +469,9 @@ describe("sense and measure", () => {
     const saved = JSON.parse(
       fake.files.get(records(fake)[0] as string) as string,
     );
-    const sensed = saved.phases[1].entries;
+    const sensed = saved.phases.find(
+      (one: { phase: string }) => one.phase === "sense",
+    ).entries;
 
     expect(sensed.map((one: { name: string }) => one.name)).toEqual(["other"]);
     expect(sensed[0].stderr).toBe("chatty");

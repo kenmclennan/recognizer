@@ -847,7 +847,10 @@ describe("serve repository watch poll", () => {
   it("the_repository_watch_polls_every_second_when_idle_and_every_quarter_second_during_a_scan", async () => {
     const gate = new Gate();
     const root = serveRoot({
-      programs: { "recognizer-sense-crap": sensorProgram("crap", { gate }) },
+      programs: {
+        "recognizer-scan-typescript": typescriptScanner(),
+        "recognizer-sense-crap": sensorProgram("crap", { gate }),
+      },
     });
     const repository = "/repo";
     const config = `${repository}/.recognizer/config.yaml`;

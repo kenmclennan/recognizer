@@ -78,6 +78,7 @@ import { detectLanguages } from "./scanning/detect-languages.js";
 import { discoverScanners } from "./scanning/discover-scanners.js";
 import { extractScans } from "./scanning/extract-scans.js";
 import { extractScansSync } from "./scanning/extract-scans-sync.js";
+import { findLanguageGaps } from "./scanning/find-language-gaps.js";
 import type { ScanningQueries } from "./scanning/internal/scanning-ports.js";
 import type {
   ScannerQueries,
@@ -197,6 +198,7 @@ function bindDecisions(
     selectSensors: (input) => selectSensors(sensing, input),
     planSensors: (input) => planSensors(sensing, input),
     detectLanguages: (input) => detectLanguages(scanning, input),
+    findLanguageGaps,
     describingSettings: (describer, root) =>
       describingSettings(describing, describer, root),
     findCommitGaps: (input) => findCommitGaps(input),
