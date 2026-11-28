@@ -5,11 +5,7 @@ import { describe, expect, it } from "vitest";
 import { buildCatalog, EMPTY_CATALOG } from "../../src/finding-catalog";
 import groupFile from "../../src/finding-groups.json";
 import { sentenceOf } from "../../src/finding-sentence";
-import {
-  groupsOf,
-  headerLine,
-  withEmptyGroups,
-} from "../../src/findings-groups";
+import { groupsOf, withEmptyGroups } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
 import { installedSensors } from "../fixtures";
 
@@ -266,28 +262,6 @@ describe("groupsOf", () => {
       ["Orphan", "warning"],
     ]);
     expect(groups[1]?.rows.map((row) => row.id)).toEqual(["c1", "c2"]);
-  });
-});
-
-describe("headerLine", () => {
-  const rows = (violations: number, warnings: number) =>
-    findingRows([
-      document("s", [
-        ...Array.from({ length: violations }, (_, i) =>
-          record(`v${i}`, "cycle", "violation"),
-        ),
-        ...Array.from({ length: warnings }, (_, i) =>
-          record(`w${i}`, "orphan"),
-        ),
-      ]),
-    ]);
-
-  it("omits a zero part and uses the singular for one", () => {
-    expect(headerLine(rows(2, 104))).toBe("2 violations, 104 warnings");
-    expect(headerLine(rows(0, 106))).toBe("106 warnings");
-    expect(headerLine(rows(1, 0))).toBe("1 violation");
-    expect(headerLine(rows(0, 1))).toBe("1 warning");
-    expect(headerLine([])).toBeNull();
   });
 });
 

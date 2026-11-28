@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compareFindings, Finding, findingsStanding } from "../../src/index.js";
+import {
+  compareFindings,
+  Finding,
+  findingsHeader,
+  findingsSeverity,
+  findingsStanding,
+} from "../../src/index.js";
 
 function record(
   id: string,
@@ -103,5 +109,44 @@ describe("findingsStanding", () => {
         { severity: "violation" },
       ]),
     ).toEqual({ violations: 2, level: "violation" });
+  });
+});
+
+describe("findingsSeverity", () => {
+  const of = (...severities: ("violation" | "warning")[]) =>
+    severities.map((severity) => ({ severity }));
+
+  it("is a warning for an empty list and for warnings alone", () => {
+    expect(findingsSeverity([])).toBe("warning");
+    expect(findingsSeverity(of("warning"))).toBe("warning");
+  });
+
+  it("is a violation when one finding is a violation", () => {
+    expect(findingsSeverity(of("warning", "violation", "warning"))).toBe(
+      "violation",
+    );
+  });
+});
+
+describe("findingsHeader", () => {
+  const counts = (violations: number, warnings: number) => [
+    ...Array.from({ length: violations }, () => ({
+      severity: "violation" as const,
+    })),
+    ...Array.from({ length: warnings }, () => ({
+      severity: "warning" as const,
+    })),
+  ];
+
+  it("omits a zero part and uses the singular for one", () => {
+    expect(findingsHeader(counts(2, 104))).toBe("2 violations, 104 warnings");
+    expect(findingsHeader(counts(0, 106))).toBe("106 warnings");
+    expect(findingsHeader(counts(1, 0))).toBe("1 violation");
+    expect(findingsHeader(counts(0, 1))).toBe("1 warning");
+    expect(findingsHeader([])).toBeNull();
+  });
+
+  it("joins one violation and several warnings", () => {
+    expect(findingsHeader(counts(1, 3))).toBe("1 violation, 3 warnings");
   });
 });
