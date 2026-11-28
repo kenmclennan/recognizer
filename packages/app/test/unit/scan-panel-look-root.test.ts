@@ -867,6 +867,8 @@ const realNow = Date.now.bind(Date);
 Date.now = () => realNow() + clock.offset;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const until = async (ready, what) => { for (let waited = 0; !ready(); waited += 5) { if (waited >= 20000) throw new Error("timed out waiting for " + what + " :: " + (document.querySelector(".scan-panel")?.textContent || "").slice(0, 400) + " :: " + (document.querySelector(".footer")?.textContent || "").slice(0, 200)); await new Promise((resolve) => setTimeout(resolve, 5)); } };
+const started = (m) => until(() => m.starts().length > 0, "the start request");
+const idle = (m) => until(() => m.q(".scan-run") !== null && m.q(".scan-stop") === null, "the Scan button after the run");
 let lastQ = "";
 const click = (node) => { if (!node) throw new Error("click on nothing after " + lastQ + " EMPTY=" + (document.querySelector(".view-empty")?.textContent) + " LIST=" + (document.querySelector(".view-list")?.textContent)); return node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); };
 const host = document.getElementById("content");
@@ -1093,11 +1095,13 @@ await group(["scopeNone","scopeUntitled","scopeUntitledOn","scopeOff","scopeOn",
   start.held = false;
   start.release();
   await tick();
+  await started(sc);
   await sc.go("ran");
   await tick(); await tick();
   facts.scopeRan = { modules: sc.starts().map((plan) => plan.modules), after: scopeOf() };
   click(sc.q(".scan-scope-all"));
   await tick();
+  await idle(sc);
   click(sc.q(".scan-run"));
   await tick(); await tick();
   facts.scopeOffRan = sc.starts().map((plan) => plan.modules);
@@ -1394,6 +1398,7 @@ await group(["foldAcrossRebuild","foldReopened","foldSecondScan"], async () => {
   await tick();
   click(foldRun.q(".scan-run"));
   await tick();
+  await started(foldRun);
   await foldRun.go("ran");
   await tick(); await tick(); await tick();
   facts.foldAcrossRebuild = { before: { chevron: foldBefore.chevron, suites: foldBefore.suites, folds: foldBefore.folds }, rebuilt: foldRun.drawn.explorer() !== foldBefore.instance, chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), suites: foldOf(foldRun, "crap").suites.length, folds: [...foldRun.writes().at(-1).folds] };
@@ -1404,6 +1409,7 @@ await group(["foldAcrossRebuild","foldReopened","foldSecondScan"], async () => {
   facts.foldReopened = { chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), folds: [...foldRun.writes().at(-1).folds] };
   click(foldRun.q('.scan-row[data-sensor="crap"] .scan-fold'));
   await tick();
+  await idle(foldRun);
   click(foldRun.q(".scan-run"));
   await tick(); await tick(); await tick();
   facts.foldSecondScan = { chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded") };
@@ -1492,6 +1498,20 @@ await group(["beforePlan","beforePlanAfterRun","afterPlan"], async () => {
   await tick(); await tick();
   facts.afterPlan = pending.panel();
 });
+
+await group(["secondScanWaitsForRun"], async () => {
+  const waits = await draw("suitesRan", { until: "idle" });
+  await waits.openScan();
+  click(waits.q(".scan-run-mode-full"));
+  await tick();
+  click(waits.q(".scan-run"));
+  await tick();
+  await started(waits);
+  const duringRun = { run: waits.q(".scan-run") !== null, stop: waits.q(".scan-stop") !== null };
+  await waits.go("ran");
+  await idle(waits);
+  facts.secondScanWaitsForRun = { duringRun, afterRun: { run: waits.q(".scan-run") !== null, stop: waits.q(".scan-stop") !== null } };
+});
 `;
 const END = `
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify({ facts, errors }))));
@@ -1577,6 +1597,17 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeNone.scope.all).toBe("Whole repository");
     expect(f.scopeUntitled.scope.caption).toMatch(/^This canvas, [1-9]/);
     expect(f.scopeUntitledOn.scope.on).toBe("true");
+  });
+
+  it("holds the Scan button absent while a run is active and back once it ends, so a second Scan waits on idle", () => {
+    expect(f.secondScanWaitsForRun.duringRun).toEqual({
+      run: false,
+      stop: true,
+    });
+    expect(f.secondScanWaitsForRun.afterRun).toEqual({
+      run: true,
+      stop: false,
+    });
   });
 
   it("lists an unregistered installed sensor as one untickable not-registered row and renders no fix text", () => {
