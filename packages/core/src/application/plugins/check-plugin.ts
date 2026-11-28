@@ -1,23 +1,16 @@
-import { baseName, joinPath } from "../../domain/path.js";
+import { joinPath } from "../../domain/path.js";
 import {
   EVENT_PREFIX,
   type PluginEvent,
   parseEventLine,
 } from "../../domain/plugin-event.js";
 import {
-  grammarsWithoutFields,
-  grammarsWithoutVocabulary,
-} from "../../domain/plugins/grammar-vocabulary.js";
-import {
-  judgeProtocol,
   MANIFEST_TIMEOUT_MS,
   type Manifest,
   type ManifestRun,
-  type PlaceholderDeclaration,
-  placeholderPattern,
   publishedModel,
 } from "../../domain/plugins/manifest.js";
-import { sentenceProblems } from "../../domain/plugins/sentence.js";
+import { PluginManifest } from "../../domain/plugins/plugin-manifest.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import type { ProgramRun } from "./ports/programs.js";
 import { runManifest } from "./read-manifest.js";
@@ -47,8 +40,6 @@ interface Context {
   parsed: boolean;
   manifest: Manifest | null;
 }
-
-const VERBS = { scanner: "scan", sensor: "sense", describer: "describe" };
 
 function result(
   name: string,
@@ -125,15 +116,11 @@ export function checkNamed(context: Context): PluginCheckResult {
     return needsManifest("named-for-command");
   }
 
-  const expected = `recognizer-${VERBS[manifest.kind]}-${manifest.name}`;
-  const actual = baseName(context.command);
+  const problem = new PluginManifest(manifest).namingProblem(context.command);
 
-  return actual === expected
+  return problem === null
     ? ok("named-for-command")
-    : fail(
-        "named-for-command",
-        `the command is named ${actual}, but a ${manifest.kind} called ${manifest.name} must be named ${expected}`,
-      );
+    : fail("named-for-command", problem);
 }
 
 export function checkProtocol(context: Context): PluginCheckResult {
@@ -143,24 +130,13 @@ export function checkProtocol(context: Context): PluginCheckResult {
     return needsManifest("protocol");
   }
 
-  const judged = judgeProtocol(manifest, context.current);
+  const problem = new PluginManifest(manifest).protocolProblem(context.current);
 
-  if (judged === "current") {
+  if (problem === null) {
     return ok("protocol");
   }
 
-  if (judged === "previous") {
-    return result(
-      "protocol",
-      "warn",
-      `${manifest.name} speaks protocol ${manifest.protocol}, the previous one (current is ${context.current}); upgrade it: ${manifest.install}`,
-    );
-  }
-
-  return fail(
-    "protocol",
-    `${manifest.name} speaks protocol ${manifest.protocol}, which this recognizer (protocol ${context.current}) does not support; fix: ${manifest.install}`,
-  );
+  return result("protocol", problem.severity, problem.reason);
 }
 
 export function checkSideEffectFree(context: Context): PluginCheckResult {
@@ -179,180 +155,11 @@ export function checkSentences(context: Context): PluginCheckResult {
     return needsManifest("sentences");
   }
 
-  const problems = (manifest.findings ?? []).flatMap((entry) =>
-    sentenceProblems(entry.sentence).map((text) => `${entry.kind}: ${text}`),
-  );
+  const problems = new PluginManifest(manifest).sentenceProblems();
 
   return problems.length === 0
     ? ok("sentences")
     : fail("sentences", problems.join("; "));
-}
-
-interface LimitSetting {
-  key: string;
-  type?: string;
-  labels?: unknown;
-  units?: unknown;
-  limit?: { metric: string; severity?: string };
-}
-
-const PLACEHOLDER = /<[a-z][a-z0-9_]*>/;
-
-function limitProblems(manifest: Manifest): string[] {
-  const settings = manifest.settings as LimitSetting[];
-  const metrics = ((manifest.metrics ?? []) as { name: string }[]).map(
-    (entry) => entry.name,
-  );
-
-  return settings.flatMap((setting) => {
-    const placeholder = PLACEHOLDER.exec(setting.key)?.[0];
-    const found: string[] = [];
-
-    if (placeholder === undefined) {
-      for (const field of ["labels", "units"] as const) {
-        if (setting[field] !== undefined) {
-          found.push(`${setting.key}: ${field} needs a key with a placeholder`);
-        }
-      }
-    }
-
-    const { limit } = setting;
-
-    if (limit === undefined) {
-      return found;
-    }
-
-    if (manifest.kind !== "sensor") {
-      found.push(`${setting.key}: only a sensor may declare a limit`);
-    } else if (PLACEHOLDER.test(limit.metric)) {
-      if (limit.metric !== placeholder) {
-        found.push(
-          `${setting.key}: limit metric ${limit.metric} is not the key's own placeholder`,
-        );
-      }
-    } else if (!metrics.includes(limit.metric)) {
-      found.push(
-        `${setting.key}: limit metric ${limit.metric} is not a metric of ${manifest.name}`,
-      );
-    }
-
-    if (
-      limit.severity !== undefined &&
-      !settings.some(
-        (other) => other.key === limit.severity && other.type === "enum",
-      )
-    ) {
-      found.push(
-        `${setting.key}: limit severity ${limit.severity} is not an enum setting of ${manifest.name}`,
-      );
-    }
-
-    return found;
-  });
-}
-
-const PLACEHOLDER_GLOBAL = /<([a-z][a-z0-9_]*)>/g;
-
-function placeholdersIn(key: string): string[] {
-  return [...key.matchAll(PLACEHOLDER_GLOBAL)].map((found) => found[1] ?? "");
-}
-
-function declaredPattern(declaration: PlaceholderDeclaration): RegExp | null {
-  try {
-    return new RegExp(placeholderPattern(declaration));
-  } catch {
-    return null;
-  }
-}
-
-function manifestKeys(manifest: Manifest): string[] {
-  const suite = manifest.suite_keys;
-
-  return [
-    ...(manifest.settings as { key: string }[]).map((entry) => entry.key),
-    ...(suite === undefined
-      ? []
-      : [
-          (suite.section as { key: string }).key,
-          ...(suite.keys as { key: string }[]).map((entry) => entry.key),
-        ]),
-  ];
-}
-
-function placeholderProblems(manifest: Manifest): string[] {
-  const declared = manifest.placeholders ?? {};
-  const problems: string[] = [];
-  const used = new Set<string>();
-
-  for (const [name, declaration] of Object.entries(declared)) {
-    if (
-      declaration.pattern !== undefined &&
-      declaredPattern(declaration) === null
-    ) {
-      problems.push(`${name}: pattern does not compile`);
-    }
-  }
-
-  for (const key of manifestKeys(manifest)) {
-    for (const name of placeholdersIn(key)) {
-      used.add(name);
-
-      if (declared[name] === undefined) {
-        problems.push(
-          `${key}: uses the placeholder <${name}> that the manifest does not declare`,
-        );
-      }
-    }
-  }
-
-  for (const name of Object.keys(declared)) {
-    if (!used.has(name)) {
-      problems.push(`${name}: declared but no key uses it`);
-    }
-  }
-
-  const published = manifest.settings as Record<string, unknown>[];
-
-  if (
-    manifest.kind === "sensor" &&
-    published.length > 0 &&
-    published.every(
-      (setting) => setting.label === undefined && setting.labels === undefined,
-    )
-  ) {
-    problems.push(
-      `${manifest.name}: publishes settings but none has a label or labels, so it gets no Settings pane`,
-    );
-  }
-
-  for (const setting of manifest.settings as Record<string, unknown>[]) {
-    const first = placeholdersIn(String(setting.key))[0];
-    const declaration = first === undefined ? undefined : declared[first];
-    const pattern =
-      declaration === undefined ? null : declaredPattern(declaration);
-
-    if (first === undefined || pattern === null) {
-      continue;
-    }
-
-    for (const field of ["labels", "units", "defaults"]) {
-      const entries = setting[field];
-
-      if (entries === undefined || entries === null) {
-        continue;
-      }
-
-      for (const value of Object.keys(entries as object)) {
-        if (!pattern.test(value)) {
-          problems.push(
-            `${String(setting.key)}: ${field} entry ${value} does not match <${first}>`,
-          );
-        }
-      }
-    }
-  }
-
-  return problems;
 }
 
 export function checkPlaceholders(context: Context): PluginCheckResult {
@@ -362,7 +169,7 @@ export function checkPlaceholders(context: Context): PluginCheckResult {
     return needsManifest("placeholders");
   }
 
-  const problems = placeholderProblems(manifest);
+  const problems = new PluginManifest(manifest).placeholderProblems();
 
   return problems.length === 0
     ? ok("placeholders")
@@ -376,7 +183,7 @@ export function checkLimits(context: Context): PluginCheckResult {
     return needsManifest("limits");
   }
 
-  const problems = limitProblems(manifest);
+  const problems = new PluginManifest(manifest).limitProblems();
 
   return problems.length === 0
     ? ok("limits")
@@ -390,20 +197,7 @@ export function checkGrammars(context: Context): PluginCheckResult {
     return needsManifest("grammars");
   }
 
-  const missing = grammarsWithoutVocabulary(manifest);
-  const fieldless = grammarsWithoutFields(manifest);
-  const problems = [
-    ...(missing.length === 0
-      ? []
-      : [
-          `grammar ${missing.join(", ")} publishes no vocabulary, so its comments and literals enter fingerprints and no function shape is trivial`,
-        ]),
-    ...(fieldless.length === 0
-      ? []
-      : [
-          `grammar ${fieldless.join(", ")} publishes no fields declaration, so it is unknown whether a function can be named or operator-based complexity counted`,
-        ]),
-  ];
+  const problems = new PluginManifest(manifest).grammarProblems();
 
   return problems.length === 0
     ? ok("grammars")
