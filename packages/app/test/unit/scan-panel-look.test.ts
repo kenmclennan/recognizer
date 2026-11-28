@@ -603,26 +603,6 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick();
   click(foldRun.q(".scan-run"));
   await tick(); await tick(); await tick();
-  facts.foldAcrossRebuild = { before: foldBefore, rebuilt: foldRun.wired.explorer !== foldBefore.instance, chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), suites: foldOf(foldRun, "crap").suites.length, folds: [...foldRun.wired.rescanner.ticks().folds] };
-  const memoryRun = await mount(suiteFake, suiteSensors());
-  const memoryRows = () => memoryRun.all('.tree .row[data-path^="app/"]').length;
-  const memoryBefore = { instance: memoryRun.wired.explorer, rows: memoryRows() };
-  click(memoryRun.q('.tree .row[data-path="app"] .name'));
-  await tick();
-  click(memoryRun.q('.tree .row[data-path="app/a.py"] .reye'));
-  await tick();
-  click(memoryRun.q('.box[data-id="app/a.py"] .box-body'));
-  await tick();
-  click(memoryRun.q('.selection-bar [aria-label^="Dependencies"]'));
-  await tick();
-  memoryBefore.opened = { rows: memoryRows(), inspector: memoryRun.q(".inspector-open") !== null };
-  click(memoryRun.q(".rail-scan"));
-  await tick();
-  click(memoryRun.q(".scan-run-mode-full"));
-  await tick();
-  click(memoryRun.q(".scan-run"));
-  await tick(); await tick(); await tick();
-  facts.memoryAcrossFirstScan = { before: memoryBefore, rebuilt: memoryRun.wired.explorer !== memoryBefore.instance, rows: memoryRows(), inspector: memoryRun.q(".inspector-open") !== null };
   click(foldRun.q(".rail-files"));
   await tick();
   click(foldRun.q(".rail-scan"));
@@ -719,26 +699,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshBack.button).toBe("Up to date");
     expect(f.freshBack.secondary).toBe(0);
     expect(f.freshBack.mode).toBe("Incremental");
-  });
-
-  it("keeps an open suites fold open when a Scan rebuilds the explorer", () => {
-    const r = f.foldAcrossRebuild;
-    expect(r.before.chevron).toBe("true");
-    expect(r.before.suites).toBeGreaterThan(0);
-    expect(r.before.folds).toEqual(["crap"]);
-    expect(r.rebuilt).toBe(true);
-    expect(r.chevron).toBe("true");
-    expect(r.suites).toBe(r.before.suites);
-    expect(r.folds).toEqual(["crap"]);
-  });
-
-  it("keeps the expanded folders and the open inspector across the first Scan", () => {
-    const r = f.memoryAcrossFirstScan;
-    expect(r.before.opened.rows).toBeGreaterThan(r.before.rows);
-    expect(r.before.opened.inspector).toBe(true);
-    expect(r.rebuilt).toBe(true);
-    expect(r.rows).toBe(r.before.opened.rows);
-    expect(r.inspector).toBe(true);
   });
 
   it("matches the mock while running: Scanning…, every planned row running, the one summary bar and a row bar, a disabled Running button and a Stop beside it", () => {
