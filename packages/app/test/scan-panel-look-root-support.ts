@@ -1,14 +1,12 @@
 import { basename } from "node:path";
 import { scanHistory } from "@recognizer/core";
-import { beforeAll, describe, expect, it } from "vitest";
-import REASONS from "../../../../fixtures/sensor-reasons/states.json";
-import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { readRunRecordFiles } from "../../../cli/src/serve/refusals";
-import { type Program, sensorProgram } from "../../../cli/test/support/index";
-import { describerManifestText } from "../../../cli/test/support/manifest-text";
-import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { untilHolds } from "../app-harness";
-import { appSensor } from "../in-process-root";
+import REASONS from "../../../fixtures/sensor-reasons/states.json";
+import { readRunRecordFiles } from "../../cli/src/serve/refusals";
+import { type Program, sensorProgram } from "../../cli/test/support/index";
+import { describerManifestText } from "../../cli/test/support/manifest-text";
+import { collectFacts, FAKE_WORKER, here } from "../src/look-page";
+import { untilHolds } from "./app-harness";
+import { appSensor } from "./in-process-root";
 import {
   type Diagnosis,
   digestOf,
@@ -19,9 +17,9 @@ import {
   type LookStage,
   lookRoots,
   scanProgram,
-} from "../look-root";
+} from "./look-root";
 
-type Root = Parameters<LookStage["run"]>[0];
+export type Root = Parameters<LookStage["run"]>[0];
 
 const A_TEXT = "def f():\n    return 1\n\n\ndef g():\n    return 2\n";
 const B_TEXT = "def h():\n    return 3\n";
@@ -843,7 +841,7 @@ const SCENARIOS4 = (): Record<string, LookScenario> => ({
   timed: estimateScenario(),
 });
 
-const SCENARIOS = (): Record<string, LookScenario> => ({
+export const SCENARIOS = (): Record<string, LookScenario> => ({
   ...SCENARIOS1(),
   ...SCENARIOS2(),
   ...SCENARIOS3(),
@@ -961,7 +959,40 @@ const foldOf = (m, sensor) => ({ open: m.all('.scan-suite[data-sensor="' + senso
 const sensorRow = (m, key) => { const r = m.q('.scan-row:not(.scan-suite)[data-sensor="' + key + '"]'); const t = r.querySelector(".scan-tick"); return { ticked: t.checked, indeterminate: t.indeterminate, state: r.querySelector(".scan-state-text").textContent }; };
 
 `;
-const GROUPS = `
+const END = `
+document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify({ facts, errors }))));
+`;
+export const eachGroup = (text: string) =>
+  text.split(/^(?=await group\()/m).filter((part) => part.trim() !== "");
+export const PAGE = (recordings: unknown, body: string) =>
+  `${HARNESS(recordings, null)}
+${SHARED}
+(async () => {
+${body}
+${END}
+})().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
+`;
+
+export type Facts = ReturnType<typeof JSON.parse>;
+type Collected = { facts: Facts; errors: Record<string, string> };
+export const SHORT_AGE = /^(current|now|\d+[mhd])$/;
+export const GREEN = "rgb(63, 185, 80)";
+export const RED = "rgb(248, 81, 73)";
+export const ACCENT = "rgb(68, 147, 248)";
+export const _MUTED = "rgb(145, 152, 161)";
+export const NAMES = [
+  "Structural analysis",
+  "Descriptions",
+  "C.R.A.P.",
+  "Mutation",
+  "tally",
+  "alpha",
+  "beta",
+];
+
+export const _names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
+export const states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
+export const GROUPS = `
 
 await group(["fresh", "long"], async () => {
   const a = await draw("blank");
@@ -1053,7 +1084,8 @@ await group(["unregistered", "unregisteredSummary"], async () => {
   facts.unregisteredSummary = unregMount.q(".summary").textContent;
 });
 `;
-const GROUPS2A = `
+
+export const GROUPS2A = `
 await group(["scopeNone","scopeUntitled","scopeUntitledOn","scopeOff","scopeOn","scopeRunning","scopeRan","scopeOffRan"], async () => {
   const start = gated("scan.start");
   const sc = await draw("scope", { until: "idle", hold: start.hold, page: { views: [{ name: "demo", text: viewJson(commitOf("scope"), [{ kind: "pick", module: "app/a.py" }]) }] } });
@@ -1169,7 +1201,7 @@ await group(["freshPartial","freshComplete","freshRescan","freshBack","layout"],
 
 `;
 
-const GROUPS2B = `
+export const GROUPS2B = `
 await group(["reasons"], async () => {
   facts.reasons = {};
   const crapRed = await completedScan("crapRed");
@@ -1266,7 +1298,8 @@ await group(["changedBefore","changed"], async () => {
   clock.offset = 0;
 });
 `;
-const GROUPS3A = `
+
+export const GROUPS3A = `
 await group(["run"], async () => {
   const hold = gated("scan.start");
   const c = await draw("running", { until: "idle", hold: hold.hold });
@@ -1325,7 +1358,7 @@ await group(["stopWhileRunning","modeWhileRunning","ticksWhileRunning","ticksAft
 
 `;
 
-const GROUPS3B = `
+export const GROUPS3B = `
 await group(["suiteStale"], async () => {
   const stale = await draw("suitesStale");
   await stale.openScan();
@@ -1453,7 +1486,8 @@ await group(["rapidTicks"], async () => {
   facts.rapidTicks = { before: rapidBefore, requests: requested.map((r) => r.changes.map((c) => c.kind + ":" + c.suite)), after: { unit: rapidBox("unit").checked, web: rapidBox("web").checked } };
 });
 `;
-const GROUPS4 = `
+
+export const GROUPS4 = `
 await group(["estimatePending","estimateTicked","estimateUnticked"], async () => {
   const work = gated("sensor.work");
   const timed = await draw("timed", { until: "idle", hold: work.hold });
@@ -1493,72 +1527,57 @@ await group(["beforePlan","beforePlanAfterRun","afterPlan"], async () => {
   facts.afterPlan = pending.panel();
 });
 `;
-const END = `
-document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify({ facts, errors }))));
-`;
-const eachGroup = (text: string) =>
-  text.split(/^(?=await group\()/m).filter((part) => part.trim() !== "");
-const SETS = [
-  GROUPS,
-  GROUPS2A,
-  ...eachGroup(GROUPS2B),
-  ...eachGroup(GROUPS3A),
-  GROUPS3B,
-  GROUPS4,
-];
-const PAGE = (recordings: unknown, body: string) =>
-  `${HARNESS(recordings, null)}
-${SHARED}
-(async () => {
-${body}
-${END}
-})().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
-`;
 
-type Facts = ReturnType<typeof JSON.parse>;
-type Collected = { facts: Facts; errors: Record<string, string> };
-const SHORT_AGE = /^(current|now|\d+[mhd])$/;
-const GREEN = "rgb(63, 185, 80)";
-const RED = "rgb(248, 81, 73)";
-const ACCENT = "rgb(68, 147, 248)";
-const _MUTED = "rgb(145, 152, 161)";
-const NAMES = [
-  "Structural analysis",
-  "Descriptions",
-  "C.R.A.P.",
-  "Mutation",
-  "tally",
-  "alpha",
-  "beta",
-];
+export const chunksWith = (names: string[]): string[] => {
+  const chunks = [
+    GROUPS,
+    GROUPS2A,
+    GROUPS2B,
+    GROUPS3A,
+    GROUPS3B,
+    GROUPS4,
+  ].flatMap(eachGroup);
 
-const _names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
-const states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
+  return [
+    ...new Set(
+      names.map((name) => {
+        const chunk = chunks.find((one) => one.includes(`facts.${name} =`));
 
-describe.skipIf(webkit === undefined)("the Scan panel", () => {
-  let f = null as unknown as Facts;
+        if (chunk === undefined) {
+          throw new Error(`no group sets fact ${name}`);
+        }
 
-  beforeAll(async () => {
-    const named = await lookRoots(SCENARIOS());
-    const recordings = Object.fromEntries(
-      Object.entries(named).map(([name, { produced: _, ...one }]) => [
-        name,
-        one,
-      ]),
+        return chunk;
+      }),
+    ),
+  ];
+};
+
+export const scanPanelFacts = async (
+  sets: string[],
+): Promise<{ facts: Facts }> => {
+  const body = sets.join("\n");
+  const picked = Object.fromEntries(
+    Object.entries(SCENARIOS()).filter(([name]) => body.includes(`"${name}"`)),
+  );
+  const named = await lookRoots(picked);
+  const recordings = Object.fromEntries(
+    Object.entries(named).map(([name, { produced: _, ...one }]) => [name, one]),
+  );
+  const collected: Collected = { facts: {}, errors: {} };
+
+  for (const part of sets) {
+    const page = await collectFacts<Collected>(
+      PAGE(recordings, part),
+      "scan-panel-look",
     );
-    const collected: Collected = { facts: {}, errors: {} };
 
-    for (const body of SETS) {
-      const part = await collectFacts<Collected>(
-        PAGE(recordings, body),
-        "scan-panel-look",
-      );
+    Object.assign(collected.facts, page.facts);
+    Object.assign(collected.errors, page.errors);
+  }
 
-      Object.assign(collected.facts, part.facts);
-      Object.assign(collected.errors, part.errors);
-    }
-
-    f = new Proxy(collected.facts, {
+  return {
+    facts: new Proxy(collected.facts, {
       get: (target, key) => {
         if (key in target) {
           return target[key];
@@ -1568,570 +1587,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
           collected.errors[String(key)] ?? `no fact ${String(key)}`,
         );
       },
-    });
-  }, scaledTimeout(900000));
-
-  it("offers the canvas and whole-repository switch on an Untitled canvas, captioned This canvas and sized by its open files", () => {
-    expect(f.scopeNone.scope.switches).toBe(1);
-    expect(f.scopeNone.scope.caption).toBe("This canvas, 0");
-    expect(f.scopeNone.scope.all).toBe("Whole repository");
-    expect(f.scopeUntitled.scope.caption).toMatch(/^This canvas, [1-9]/);
-    expect(f.scopeUntitledOn.scope.on).toBe("true");
-  });
-
-  it("lists an unregistered installed sensor as one untickable not-registered row and renders no fix text", () => {
-    expect(f.unregistered.keys).toEqual(["structure", "crap", "mutation"]);
-    expect(f.unregistered.fixLines).toBe(0);
-    expect(f.unregisteredSummary).not.toMatch(/Mutation/);
-  });
-
-  it("shows the unregistered summary and its fix lines after a run when nothing is registered", () => {
-    expect(f.afterRunUnregistered.shape).toBe("unregistered");
-    expect(f.afterRunUnregistered.button).toBe("Nothing to run");
-    expect(f.afterRunUnregistered.fixLines).toBeGreaterThan(0);
-  });
-
-  it("reads Checking on the rows and the headline until the first plan answer arrives, then reads the real state", () => {
-    for (const panel of [f.beforePlan, f.beforePlanAfterRun]) {
-      expect(panel.summary.shape).toBe("checking");
-      expect(panel.summary.head).toBe("Checking what is out of date");
-      expect(panel.rows.find((r: Facts) => r.key === "structure").state).toBe(
-        "checking",
-      );
-      expect(panel.rows.find((r: Facts) => r.key === "crap").state).toBe(
-        "checking",
-      );
-    }
-
-    expect(f.afterPlan.summary.shape).not.toBe("checking");
-    expect(states(f.afterPlan)).not.toContain("checking");
-  });
-
-  it("captions a saved view by name and locks the switch during a run", () => {
-    expect(f.scopeOff.scope).toEqual({
-      switches: 1,
-      caption: "demo, 1",
-      on: "false",
-      all: "Whole repository",
-      disabled: false,
-    });
-    expect(f.scopeOn.scope.on).toBe("true");
-    expect(f.scopeRunning.disabled).toBe(true);
-    expect(f.scopeRan.after.disabled).toBe(false);
-  });
-
-  it("reads Descriptions and a ticked Mutation row as never run under either scope and leaves the other rows alone", () => {
-    expect(f.scopeOff.describe).toBe("never run");
-    expect(f.scopeOff.mutation).toBe("never run");
-    expect(f.scopeOn.describe).toBe("never run");
-    expect(f.scopeOn.mutation).toBe("never run");
-    expect(f.scopeOn.crap).toBe(f.scopeOff.crap);
-    expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
-  });
-
-  it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
-    expect(f.fresh.order).toEqual([
-      "rail-files",
-      "rail-commits",
-      "rail-views",
-      "rail-notes",
-      "rail-scan",
-      "rail-findings",
-      "rail-setup",
-      "rail-settings",
-    ]);
-    expect(f.fresh.panelOpen).toBe(true);
-    expect(f.fresh.files).toBe(false);
-    expect(f.fresh.ran).toBe(0);
-    expect(f.fresh.railLabel).toContain("Scan");
-  });
-
-  it("has no heading, sub-line, Remove button, Add block, summary or disabled checkbox, and an accent-coloured checkbox", () => {
-    expect(f.fresh.strays).toBe(0);
-    expect(f.fresh.subLines).toBe(0);
-    expect(
-      f.fresh.rows.filter((r: Facts) => r.disabled).map((r: Facts) => r.key),
-    ).toEqual([]);
-    expect(f.fresh.rows.every((r: Facts) => r.accent === ACCENT)).toBe(true);
-  });
-
-  it("titles each row with its one-sentence description and prints nothing under it", () => {
-    const title = (key: string) =>
-      f.fresh.rows.find((r: Facts) => r.key === key).title;
-
-    expect(title("structure")).toBe(
-      "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.",
-    );
-    expect(title("describe")).toBe(
-      "Writes one line per file saying what it is responsible for.",
-    );
-    expect(title("crap")).toBe(
-      "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
-    );
-    expect(title("tally")).toBe("tally");
-  });
-
-  it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
-    expect(f.long.stateRight).toBeLessThanOrEqual(f.long.contentRight + 0.5);
-    expect(f.long.lines).toBe(1);
-    expect(f.long.nameOverflow).toBe(false);
-    expect(f.long.tip.left).toBeGreaterThanOrEqual(0);
-    expect(f.long.tip.top).toBeGreaterThanOrEqual(0);
-    expect(f.long.tip.right).toBeLessThanOrEqual(f.long.viewport.w);
-    expect(f.long.tip.bottom).toBeLessThanOrEqual(f.long.viewport.h);
-  });
-
-  it("matches the mock after a scan: Scanned with an age and no sha or counts", () => {
-    expect(f.scanned.header).toBe("Ran just now");
-    expect(f.scanned.amber).toBeNull();
-  });
-
-  it("carries no amber phrase in the header with files changed, and says so in the summary and the Structure row", () => {
-    expect(f.changedBefore.buttons[0].text).not.toBe("Update 1 file");
-    expect(f.changed.header).toBe("Ran 2 hours ago");
-    expect(f.changed.amber).toBeNull();
-    expect(f.changed.summary).toMatchObject({
-      shape: "attention",
-      head: "Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
-      bar: 0,
-    });
-    expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(
-      "2h",
-    );
-    expect(f.changed.buttons[0]).toEqual({
-      text: "Update 1 file",
-      disabled: false,
-      spinner: 0,
-    });
-  });
-
-  it("posts the failure and the scan start to the tray in order for a failed sensor", () => {
-    expect(f.sensorFail.messages.map((m: Facts) => m.text)).toEqual([
-      "tally failed: broke",
-      "Scan started - tally",
-    ]);
-    expect(f.sensorFail.reasonLines).toBe(0);
-  });
-
-  it("shows a failed sensor row from the message's Show and opens the log from its Open log", () => {
-    expect(f.sensorFail.footer.text).toBe("");
-    expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
-    expect(f.sensorFail.messages).toEqual([
-      { text: "tally failed: broke", actions: ["Show", "Open log"] },
-      { text: "Scan started - tally", actions: [] },
-    ]);
-    expect(f.sensorFail.hiddenBefore).toBe(true);
-    expect(f.sensorFail.panelOpen).toBe(true);
-    expect(f.sensorFail.dot).toBe(true);
-    expect(f.sensorFail.opened).toEqual([
-      expect.stringMatching(/^\.recognizer\/cache\/log\/.+-scan\.json$/),
-    ]);
-  });
-
-  it("leaves a failed sensor at failed with its age and a log link in red under a run card in the bad tone", () => {
-    const row = f.failed.rows.find((r: Facts) => r.key === "tally");
-
-    expect(row.state).toBe("failed, just now");
-    expect(row.color).toBe(RED);
-    expect(row.logLink).toBe("log");
-    expect(f.failed.summary.shape).toBe("run-card");
-    expect(f.failed.summary.tone).toBe("bad");
-    expect(f.failed.summary.bar).toBe(0);
-    expect(f.failed.amber).toBeNull();
-  });
-
-  it("two_quick_tick_clicks_apply_in_order", () => {
-    const r = f.rapidTicks;
-    expect(r.requests).toEqual([["suite:unit"], ["suite:unit", "suite:web"]]);
-    expect(r.after).toEqual({ unit: !r.before.unit, web: !r.before.web });
-  });
-
-  it("closes an open suites fold when the Scan panel is reopened", () => {
-    expect(f.foldReopened.chevron).toBe("false");
-    expect(f.foldReopened.folds).toEqual([]);
-  });
-
-  it("keeps an open suites fold open when a Scan rebuilds the explorer", () => {
-    const r = f.foldAcrossRebuild;
-
-    expect(r.before.chevron).toBe("true");
-    expect(r.before.suites).toBeGreaterThan(0);
-    expect(r.before.folds).toEqual(["crap"]);
-    expect(r.chevron).toBe("true");
-    expect(r.suites).toBe(r.before.suites);
-    expect(r.folds).toEqual(["crap"]);
-  });
-
-  it("keeps the expanded folders and the open inspector across the first Scan", () => {
-    const r = f.memoryAcrossFirstScan;
-
-    expect(r.before.opened.rows).toBeGreaterThan(r.before.rows);
-    expect(r.before.opened.inspector).toBe(true);
-    expect(r.rows).toBe(r.before.opened.rows);
-    expect(r.inspector).toBe(true);
-  });
-
-  it("keeps the fold open on a second Scan that updates the explorer in place (non-gating)", () => {
-    expect(f.foldSecondScan.chevron).toBe("true");
-  });
-
-  it.each([200, 280])(
-    "keeps every row on one line with the fold open at %i px",
-    (width) => {
-      const w = f.suiteWidths[width];
-
-      expect(w.count).toBeGreaterThan(7);
-      expect(w.heights.every(Boolean)).toBe(true);
-      expect(w.clipped.some(Boolean)).toBe(false);
-      expect(w.panelOverflow).toBe(false);
-      expect(w.panelWidth).toBeLessThanOrEqual(width);
-    },
-  );
-
-  it("matches the run card while running: A scan is running., every planned row running, the Scanning card with a row bar and a single Stop", () => {
-    expect(f.run.first).not.toBeNull();
-    expect(f.run.heldSamples).toBe(4);
-    expect(f.run.heldPlans).toBe(1);
-    expect(f.run.plans).toEqual([
-      {
-        describe: "stale",
-        analysis: true,
-        sense: ["tally", "crap"],
-        modules: ["app/a.py", "app/b.py"],
-        plannedMs: {},
-      },
-    ]);
-    expect(f.run.first.header).toBe("A scan is running.");
-    expect(
-      f.run.first.rows
-        .filter((r: Facts) => r.spinner > 0)
-        .map((r: Facts) => r.key),
-    ).toEqual(["describe", "crap", "tally"]);
-    expect([1, 2, 4].map((i) => f.run.first.rows[i].state)).toEqual([
-      "0 of 2",
-      "running",
-      "running",
-    ]);
-    expect(f.run.first.rows[1].color).toBe(ACCENT);
-    expect(f.run.first.summary).toMatchObject({
-      shape: "run-card",
-      tone: "run",
-      head: "ScanningNo estimate yet",
-      bar: 0,
-      spinning: true,
-    });
-    expect(f.run.first.rowBars).toBe(1);
-    expect(f.run.first.buttons).toEqual([
-      { text: "Stop", disabled: false, spinner: 0 },
-    ]);
-    expect(f.run.footer.text).toBe(
-      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 2 files",
-    );
-    expect(f.run.footer.buttons).toEqual(["bell"]);
-    expect(f.run.footerAfter.text).toBe("");
-    expect(f.run.footerAfter.buttons).toEqual(["bell"]);
-    expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
-  });
-
-  it("moves each row on as it finishes and draws no bar once the run is over", () => {
-    const row = (panel: Facts, key: string) =>
-      panel.rows.find((r: Facts) => r.key === key);
-
-    expect(row(f.run.afterDescribe, "tally").state).toBe("running");
-    expect(row(f.run.afterDescribe, "crap").state).toBe("running");
-    expect(row(f.run.afterDuplication, "crap").state).toBe("now");
-    expect(row(f.run.afterDuplication, "crap").color).toBe(GREEN);
-    expect(row(f.run.afterDuplication, "tally").state).toBe("running");
-    expect(row(f.run.after, "tally").state).toBe("current");
-    expect(row(f.run.after, "crap").state).toBe("now");
-    expect(f.run.after.header).toBe("Ran just now");
-    expect(f.run.after.rowBars).toBe(0);
-    expect(f.run.after.summary.bar).toBe(0);
-    expect(f.run.after.summary.shape).not.toBe("running");
-  });
-
-  it("keeps a tests-running tick after the scan it ran in and writes it", () => {
-    expect(f.run.crapTickAfter).toBe(true);
-    expect(f.run.written.at(-1)).toContain("crap");
-  });
-
-  it("lays out the rows, then the scope toggle, the mode toggle, the primary, with the primary full width and nothing clipped", () => {
-    expect(f.layout.order).toEqual([
-      "scan-header",
-      "scan-sub",
-      "scan-list",
-      "scan-controls",
-      "scan-buttons",
-      "scan-estimate",
-    ]);
-    expect(f.layout.controls).toEqual(["scan-scope", "scan-run-mode"]);
-    expect(f.layout.rowsBeforeControls).toBe(true);
-    expect(f.layout.scopeAboveMode).toBe(true);
-    expect(f.layout.modeAbovePrimary).toBe(true);
-    expect(
-      Math.abs(f.layout.runWidth - f.layout.contentWidth),
-    ).toBeLessThanOrEqual(1);
-    expect(f.layout.modeClipped).toBe(false);
-    expect(f.layout.secondaryCss).toBe(0);
-  });
-
-  it("disables This canvas with a tooltip at a count of 0 and plans the whole repository without rewriting the tick", () => {
-    expect(f.emptyCanvas).toEqual({
-      canvasDisabled: true,
-      canvasTitle: "The canvas is empty.",
-      canvasPressed: "false",
-      allPressed: "true",
-      allDisabled: false,
-      caption: f.emptyCanvas.caption,
-    });
-    expect(f.emptyCanvasClick.writes).toBe(0);
-    expect(f.emptyCanvasRun.modules).toEqual([null]);
-    expect(f.emptyCanvasRun.onlyView).toBe(true);
-  });
-
-  it("runs nothing and writes no tick when the primary reads Ticked checks are up to date", () => {
-    expect(f.idleButton.label).toBe("Ticked checks are up to date");
-    expect(f.idleButton.disabled).toBe(true);
-    expect(f.idleButton.text).not.toMatch(/include (it|them) in the next scan/);
-    expect(f.idleClick).toEqual({ ran: 0, written: 0 });
-  });
-
-  it("stops a running scan from the Scan panel with a single Stop button, sends scan.stop once and leaves the footer empty", () => {
-    expect(f.stopWhileRunning.order).toEqual(["scan-stop"]);
-    expect(f.stopWhileRunning.count).toBe(1);
-    expect(f.stop.stops).toBe(1);
-    expect(f.stop.footer).toBe("");
-    expect(f.stop.footerButtons).toEqual(["bell"]);
-    expect(f.stop.stopAfter).toBe(0);
-    expect(f.stop.button).toBe("Run Descriptions");
-    expect(f.stop.disabled).toBe(false);
-  });
-
-  it("(non-gating) disables the mode toggle while a scan runs and keeps Stop enabled", () => {
-    expect(f.modeWhileRunning.disabled).toEqual([true, true]);
-    expect(f.modeWhileRunning.stopEnabled).toBe(true);
-  });
-
-  it("disables every row's checkbox while a run is in progress, ignores a label click, and re-enables them on Stop", () => {
-    expect(f.ticksWhileRunning.disabled.length).toBeGreaterThan(0);
-    expect(f.ticksWhileRunning.disabled.every(Boolean)).toBe(true);
-    expect(f.ticksWhileRunning.unchanged).toBe(true);
-    expect(f.ticksWhileRunning.stopEnabled).toBe(true);
-    expect(f.ticksAfterStop.length).toBeGreaterThan(0);
-    expect(f.ticksAfterStop.filter(Boolean)).toHaveLength(0);
-  });
-
-  it("lists Descriptions and the third-party rows, none disabled, when the installed list is unavailable", () => {
-    expect(f.down).toEqual([
-      { name: "Structural analysis", disabled: false },
-      { name: "Descriptions", disabled: false },
-      { name: "crap", disabled: false },
-      { name: "mutation", disabled: false },
-      { name: "tally", disabled: false },
-      { name: "alpha", disabled: false },
-      { name: "beta", disabled: false },
-    ]);
-  });
-
-  it("says why each sensor could not run fully, one second line per mock state", () => {
-    const r = f.reasons;
-
-    expect(r.crapRed.state).toMatch(SHORT_AGE);
-    expect(r.crapRed.tone).toBe("ok");
-    expect(r.crapRed.why).toBe("3 tests failed, so coverage may read low.");
-    expect(r.crapRed).toMatchObject({ beneath: false, log: "log" });
-    expect(r.crapNoCov.state).toMatch(SHORT_AGE);
-    expect(r.crapNoCov.why).toContain("cargo install cargo-llvm-cov");
-    expect(r.crapNoCov).toMatchObject({ beneath: false, log: null });
-    expect(r.crapNoRun.state).toMatch(/^failed/);
-    expect(r.crapNoRun.tone).toBe("bad");
-    expect(r.crapNoRun.why).toBe(
-      "pytest is not in this repository's environment. Add it with uv add --dev pytest.",
-    );
-    expect(r.crapNoRun).toMatchObject({ beneath: false });
-    expect(r.mutationRed.state).toMatch(/^failed/);
-    expect(r.mutationRed.tone).toBe("bad");
-    expect(r.mutationRed.why).toContain("tests/test_orders.py::test_refund");
-    expect(r.mutationRed).toMatchObject({ beneath: false, log: "log" });
-    expect(r.mutationNoCov.state).toMatch(/^failed/);
-    expect(r.mutationNoCov).toMatchObject({ beneath: false });
-  });
-
-  it("keeps each second line inside its row and clear of the next row", () => {
-    const r = f.reasons;
-
-    for (const one of [
-      r.crapRed,
-      r.crapNoCov,
-      r.crapNoRun,
-      r.mutationRed,
-      r.mutationNoCov,
-    ]) {
-      expect(one.beneath).toBe(false);
-      expect(one.oneLine).toBe(true);
-      expect(one.clear).not.toBe(false);
-    }
-  });
-
-  it("opens the sensors' log through the editor and copies the bare fix", () => {
-    expect(f.reasons.opened).toEqual([
-      ".recognizer/cache/coverage/last-run.log",
-    ]);
-  });
-
-  it("shows a refusal remembered from the run log after a restart, with its reason, Copy and Show log, and nothing else changes", () => {
-    const r = f.restart;
-
-    expect(r.refused.state).toMatch(/^failed/);
-    expect(r.refused.tone).toBe("bad");
-    expect(r.refused.why).toBeTruthy();
-    expect(r.refused.log).toBe("log");
-    expect(r.copy.why).toBeTruthy();
-    expect(r.refused.beneath).toBe(false);
-
-    for (const one of [r.okNewer, r.none, r.older, r.tie]) {
-      expect(one.state).toMatch(SHORT_AGE);
-      expect(one.why).toBeNull();
-    }
-  });
-
-  it("shows each distinct settings-error reason once, wrapped inside the panel", () => {
-    expect(f.settingsError.label).toBe("settings error");
-    expect(f.settingsError.occurrences).toBe(1);
-    expect(f.settingsError.fitsRight).toBe(true);
-    expect(f.settingsError.unclipped).toBe(true);
-    expect(f.settingsError.belowLabel).toBe(true);
-  });
-
-  it("shows failed and no second line for a failure with no diagnosis", () => {
-    expect(f.reasons.plain.state).toMatch(/^failed/);
-    expect(f.reasons.plain.why).toBeNull();
-  });
-
-  it("remembers the switch through the port and sends the view's file ids when it is on, and a click on Run with the scope off runs the still-ticked sensor on the whole repository", () => {
-    expect(f.scopeOn.written.onlyView).toBe(true);
-    expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
-    expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
-  });
-
-  it("remembers a tick, a tests-running sensor's tick and a suite tick through the port, and a reopened window reads them back", () => {
-    expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
-    expect(f.ticked.written).toEqual({
-      describe: true,
-      analysis: true,
-      ticked: ["tally", "crap"],
-      onlyView: false,
-      suites: {},
-      folds: [],
-    });
-    expect(f.reopened).toEqual(["structure", "describe", "crap", "tally"]);
-    expect(f.suiteStart.crap).toEqual({
-      ticked: false,
-      indeterminate: false,
-      state: "none",
-    });
-    expect(f.suiteStart.fold.open).toBe(false);
-    expect(f.suiteOpened.suites.map((s: Facts) => s.name)).toEqual([
-      "unit",
-      "a-suite-with-a-very-long-name-indeed",
-      "web",
-    ]);
-    expect(f.suiteFoldWritten).toEqual(["crap"]);
-    expect(f.suiteAfterTick.written.suites.crap).toEqual({
-      ticked: ["unit"],
-      known: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
-    });
-    expect(f.suiteAfterTick.sensor).toMatchObject({
-      ticked: false,
-      indeterminate: true,
-    });
-    expect(f.suiteReopened.fold.open).toBe(false);
-    expect(f.suiteReopened.sensor).toMatchObject({
-      ticked: false,
-      indeterminate: true,
-    });
-  });
-
-  it("draws a suite whose covered file changed in the out-of-date style of the sensor row and leaves an up-to-date suite ok", () => {
-    const r = f.suiteStale;
-
-    expect(r.currentKind).toBe("ok");
-    expect(r.current.title).toMatch(/^current, /);
-    expect(r.behindKind).toBe("stale");
-    expect(r.behind.text).toBe("1 out of date");
-    expect(r.behind.title).toMatch(/^1 file out of date, ran /);
-    expect(r.behind.icon).toBe(r.alert);
-    expect(r.behind.className).toContain("warn");
-    expect(r.current.icon).not.toBe(r.behind.icon);
-  });
-
-  it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {
-    expect(f.suiteArmed).toMatchObject({ ticked: true, indeterminate: false });
-    expect(f.suiteAfterScan.plan.suites).toEqual({
-      crap: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
-    });
-    expect(f.suiteAfterScan.sensor.ticked).toBe(true);
-    expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
-    expect(f.suiteAfterScan.fold.open).toBe(false);
-  });
-
-  it("shows the estimate line under the primary button with its breakdown on hover, and hides it when nothing is ticked", () => {
-    expect(f.estimateTicked).not.toBeNull();
-    expect(f.estimateTicked.exists).toBe(true);
-    expect(f.estimateTicked.hidden).toBe(false);
-    expect(f.estimateTicked.afterButtons).toBe(true);
-    expect(f.estimateTicked.text).toBe("About 3 min");
-    expect(f.estimateTicked.title).toBe(
-      "Structural analysis: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
-    );
-    expect(f.estimateUnticked.hidden).toBe(true);
-  });
-
-  it("reads Mutation as no estimate yet while the sensor's work answer is pending, and a figure after", () => {
-    expect(f.estimatePending.hidden).toBe(false);
-    expect(f.estimatePending.text).toBe(
-      "Under a minute, plus Mutation: no estimate yet",
-    );
-    expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
-    expect(f.estimateTicked.text).toBe("About 3 min");
-  });
-
-  it("summarises one sensor-out-of-date file with no bar and Update 1 file, then everything current with a disabled Up to date once the hashes match", () => {
-    expect(f.freshPartial.summary).toMatchObject({
-      shape: "behind",
-      tone: "warn",
-      head: "C.R.A.P. is out of date on 1 file",
-      bar: 0,
-    });
-    expect(f.freshPartial.rowBars).toBe(0);
-    expect(f.freshPartial.rows).toEqual([
-      { state: "1 file out of date", note: null },
-    ]);
-    expect(f.freshPartial.button).toBe("Update 1 file");
-    expect(f.freshPartial.disabled).toBe(false);
-    expect(f.freshPartial.secondary).toBe(0);
-    expect(f.freshPartial.mode).toBe("Incremental");
-    expect(f.freshPartial.oldSwitch).toBe(0);
-    expect(f.freshComplete.summary).toMatchObject({
-      shape: "current",
-      tone: "ok",
-      head: "Everything on the repository is current",
-      bar: 0,
-    });
-    expect(f.freshComplete.rowBars).toBe(0);
-    expect(f.freshComplete.button).toBe("Up to date");
-    expect(f.freshComplete.disabled).toBe(true);
-  });
-
-  it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
-    expect(f.report.names).toEqual(NAMES);
-    expect(f.report.listCount).toBe(7);
-    expect(f.report.ticks).toBe(0);
-    expect(f.report.chip).toBe("reported 3 minutes ago");
-    expect(f.report.commit).toBe("feed123");
-    expect(f.report.clear).toBe("Clear");
-    expect(f.report.afterList).toBe(true);
-    expect(f.reportCleared.removed).toEqual(["review"]);
-    expect(f.reportCleared.present).toBe(false);
-  });
-});
+    }),
+  };
+};
