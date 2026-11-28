@@ -180,7 +180,12 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
   let forwarded = 0;
   let delivered = 0;
 
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(root.io.timers.now());
+
   const flush = () => {
+    vi.setSystemTime(root.io.timers.now());
+
     const before = delivered;
 
     for (; forwarded < root.lines.length; forwarded += 1) {
@@ -222,6 +227,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
 
   cleanups.push(() => {
     void root.close();
+    vi.useRealTimers();
   });
 
   const folder = { known: options.folderKnown ?? true };

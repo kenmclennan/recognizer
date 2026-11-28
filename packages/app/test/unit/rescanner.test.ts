@@ -1879,6 +1879,111 @@ describe("adopting once per scan", () => {
     };
   }
 
+  it("adopts once and reports no error when the finished record lands while the finished scan is being adopted", async () => {
+    const scan = fakeScan({ records: false });
+    let waiting = false;
+    const { log, lifecycle, rescanner } = harness(scan, {
+      adopt: async () => {
+        log.push("adopt");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        if (!waiting) {
+          throw new Error(NOT_WAITING);
+        }
+
+        waiting = false;
+
+        return ORIGIN;
+      },
+    });
+    const real = scan.run.bind(scan);
+
+    scan.run = async (plan) => {
+      waiting = true;
+      scan.emitReport(current);
+      scan.emitReport(sensing(1));
+
+      const result = await real(plan);
+
+      setTimeout(() => {
+        scan.emitRun({
+          kind: "run",
+          run: {
+            ...finishedRecord,
+            run_id: "own-1",
+            started_at: new Date().toISOString(),
+          },
+        });
+      }, 5);
+
+      return result;
+    };
+
+    await rescanner.run(null, OPEN_RUN);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(adopts(log)).toHaveLength(1);
+    expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
+    expect(lifecycle.map((one) => one.text)).toEqual([
+      "Scan started - Alpha",
+      expect.stringMatching(/^Scan complete/),
+    ]);
+  });
+
+  for (const status of ["failed", "finished"] as const) {
+    it(`posts one failure when a ${status} result is followed by the failed record`, async () => {
+      const scan = fakeScan({
+        records: false,
+        result:
+          status === "failed"
+            ? { status: "failed", exitCode: 1, stderr: "boom" }
+            : { status: "finished", exitCode: 1 },
+      });
+      const { log, lifecycle, rescanner } = harness(scan, {
+        hasExplorer: () => true,
+      });
+      const real = scan.run.bind(scan);
+
+      scan.run = async (plan) => {
+        scan.emitReport(current);
+        scan.emitReport(sensing(1));
+
+        const result = await real(plan);
+
+        setTimeout(() => {
+          scan.emitRun({
+            kind: "run",
+            run: {
+              ...finishedRecord,
+              run_id: "own-1",
+              phase: "failed",
+              exit: 1,
+              started_at: new Date().toISOString(),
+              failure: {
+                sensor: "alpha",
+                suite: null,
+                code: null,
+                reason: "boom",
+              },
+            },
+          });
+        }, 5);
+
+        return result;
+      };
+
+      await rescanner.run(null, OPEN_RUN);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(
+        lifecycle.filter((one) => one.text.startsWith("Scan failed")),
+      ).toHaveLength(1);
+      expect(log.filter((one) => one.startsWith("blocked:"))).not.toContain(
+        "blocked:Error: no scan is waiting to be adopted",
+      );
+    });
+  }
+
   it("adopts again for the next scan", async () => {
     const scan = fakeScan({ records: false });
     let scans = 0;

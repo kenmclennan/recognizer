@@ -178,6 +178,7 @@ export function createRescanner<Carried>(
   let liveRunId: string | null = null;
   let endedRunId: string | null = null;
   let ownEnd: ScanRunRecord | null = null;
+  let lateEnd: { since: number; after: string | null } | null = null;
   let starting: { at: number } | null = null;
   let scanStartedWall: number | null = null;
   let startedFrom: string | null = null;
@@ -259,7 +260,19 @@ export function createRescanner<Carried>(
     ports.replace(loaded, ports.carry());
   }
 
-  async function settle(): Promise<boolean> {
+  let settling: Promise<boolean> | null = null;
+
+  function settle(): Promise<boolean> {
+    if (settling === null) {
+      settling = settleOnce().finally(() => {
+        settling = null;
+      });
+    }
+
+    return settling;
+  }
+
+  async function settleOnce(): Promise<boolean> {
     try {
       if (adoptedThisScan) {
         return true;
@@ -540,14 +553,14 @@ export function createRescanner<Carried>(
     }
   }
 
-  async function beginRun(scan: ScanRunRecord) {
+  async function beginRun(scan: ScanRunRecord, keepAdopted = false) {
     const registered = await ports.registered();
     const display = (name: string) =>
       registered.sensors.find((one) => one.name === name)?.display ?? name;
 
     begunRunId = scan.run_id;
     liveRunId = scan.run_id;
-    adoptedThisScan = own !== null ? adoptedThisScan : false;
+    adoptedThisScan = own !== null || keepAdopted ? adoptedThisScan : false;
     failureIds = [];
     linkedFailures = new Set();
     rows = [
@@ -600,9 +613,16 @@ export function createRescanner<Carried>(
     return null;
   }
 
-  async function endRun(scan: ScanRunRecord) {
+  async function endRun(scan: ScanRunRecord, late = false) {
     if (endedRunId === scan.run_id) {
       return;
+    }
+
+    if (
+      begunRunId !== scan.run_id &&
+      (scan.phase === "finished" || scan.phase === "failed")
+    ) {
+      await beginRun(scan, late);
     }
 
     endedRunId = scan.run_id;
@@ -756,6 +776,18 @@ export function createRescanner<Carried>(
     record = next;
 
     const mine = own !== null && next.run_id === ownRunId;
+
+    if (
+      lateEnd !== null &&
+      !isActive(next) &&
+      next.run_id !== lateEnd.after &&
+      Date.parse(next.started_at) >= lateEnd.since
+    ) {
+      lateEnd = null;
+      await endRun(next, true);
+
+      return;
+    }
 
     if (isActive(next)) {
       if (begunRunId !== next.run_id) {
@@ -958,6 +990,7 @@ export function createRescanner<Carried>(
     startedFrom = record?.run_id ?? null;
     ownRunId = null;
     ownEnd = null;
+    lateEnd = null;
     scanStartedWall = wallNow();
     starting = { at: scanStartedWall };
     publish();
@@ -1008,6 +1041,10 @@ export function createRescanner<Carried>(
       return;
     }
 
+    lateEnd =
+      result.status === "finished" && scanStartedWall !== null
+        ? { since: scanStartedWall, after: startedFrom }
+        : null;
     liveRunId = null;
     run = { ...run, running: [], started: null };
 
