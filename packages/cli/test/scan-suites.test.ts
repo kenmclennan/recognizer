@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { exampleManifest } from "./installed-read.js";
 import {
   type FakeOptions,
   fakeIo,
@@ -198,5 +199,78 @@ describe("recognizer scan --suites", () => {
 
     expect(code).toBe(2);
     expect(err).toContain("cannot read --suites file");
+  });
+});
+
+describe("recognizer scan --suites with a sensor that does not resolve", () => {
+  it("is exit 2 and names the missing program for a bare settings entry", async () => {
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [CONFIG]: [
+          ...CONFIG_TEXT.split("\n").slice(0, 6),
+          "sensors:",
+          "  crap: {}",
+          "",
+        ].join("\n"),
+        [FILE]: JSON.stringify({ crap: ["unit"] }),
+      },
+      scanners: { [PYTHON]: { output: scanJson(1, 0) } },
+    });
+    const code = await run(
+      ["scan", ROOT, "--sense", "crap", "--suites", FILE],
+      fake.io,
+    );
+
+    expect(fake.err()).not.toBe("");
+    expect(code).toBe(2);
+    expect(fake.err()).toContain("--suites names crap, which cannot be read");
+    expect(fake.err()).toContain("is not installed");
+    expect(fake.err()).not.toContain("runs no tests");
+  });
+});
+
+describe("recognizer scan --suites with a sensor registered by full path", () => {
+  it("runs the configured suite", async () => {
+    const path = "/opt/sensors/crap-sensor";
+    const ran: string[][] = [];
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [CONFIG]: [
+          ...CONFIG_TEXT.split("\n").slice(0, 6),
+          "sensors:",
+          `  crap: { command: [${path}, run, --output, "{output}"], manifest: [${path}, manifest] }`,
+          "",
+        ].join("\n"),
+        [FILE]: JSON.stringify({ crap: ["unit"] }),
+      },
+      scanners: { [PYTHON]: { output: scanJson(1, 0) } },
+      programs: {
+        [path]: (args, files) => {
+          if (args.at(-1) === "manifest") {
+            return { stdout: JSON.stringify(exampleManifest("crap")) };
+          }
+
+          if (args.includes("check")) {
+            return { stdout: `${JSON.stringify({ gaps: [] })}\n` };
+          }
+
+          ran.push(args);
+
+          return findingsFor("crap")(args, files);
+        },
+      },
+    });
+    const code = await run(
+      ["scan", ROOT, "--sense", "crap", "--suites", FILE],
+      fake.io,
+    );
+
+    expect(fake.err()).toBe("");
+    expect(code).toBe(0);
+    expect(ran.flat()).toContain('["unit"]');
   });
 });

@@ -1,6 +1,12 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import { parseSuiteSelection } from "../../domain/sensing/suite-selection.js";
-import { isScoped, runsTests } from "../plugins/installed-sensors.js";
+import {
+  commandKey,
+  type InstalledRead,
+  isScoped,
+  runsTests,
+  sensorProgram,
+} from "../plugins/installed-sensors.js";
 import { undeclaredSensors } from "../plugins/undeclared-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 import type {
@@ -23,6 +29,23 @@ function suitesText(ports: SensingPorts, file: string): string {
   return read.text;
 }
 
+function unreadableReason(
+  sensor: { name: string; command: string[] },
+  installed: InstalledRead,
+  broken: ReadonlyMap<string, string>,
+): string | undefined {
+  if (
+    broken.has(sensor.name) ||
+    installed.registered?.[commandKey(sensor.command)] !== undefined
+  ) {
+    return undefined;
+  }
+
+  const program = sensorProgram(sensor.name);
+
+  return `${program} is not installed: install ${program}`;
+}
+
 export function planSensors(
   ports: SensingPorts,
   input: SensorPlanInput,
@@ -40,11 +63,16 @@ export function planSensors(
       : parseSuiteSelection(
           suitesText(ports, input.suitesFile),
           configured,
-          selected.map((one) => ({
-            name: one.name,
-            runsTests:
-              broken.has(one.name) || runsTests(one.command, installed),
-          })),
+          selected.map((one) => {
+            const unreadable = unreadableReason(one, installed, broken);
+
+            return {
+              name: one.name,
+              runsTests:
+                broken.has(one.name) || runsTests(one.command, installed),
+              ...(unreadable === undefined ? {} : { unreadable }),
+            };
+          }),
         );
   const explicit: Record<string, string[]> = { ...parsed };
 
