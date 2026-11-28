@@ -219,7 +219,12 @@ describe("suites behind", () => {
   const files = ["a.ts", "packages/app/b.ts"];
 
   it("gives a file to the suite whose directory is the longest that contains it", () => {
-    const behind = suitesBehind({ suites: configured, files, current: [] });
+    const behind = suitesBehind({
+      suites: configured,
+      files,
+      recorded: files,
+      current: [],
+    });
 
     expect(behind.get("root")).toBe(1);
     expect(behind.get("app")).toBe(1);
@@ -228,13 +233,16 @@ describe("suites behind", () => {
   it("treats an empty directory and a dot as covering every file", () => {
     const dot = [{ name: "all", directory: "." }];
 
-    expect(suitesBehind({ suites: dot, files, current: [] }).get("all")).toBe(
-      2,
-    );
+    expect(
+      suitesBehind({ suites: dot, files, recorded: files, current: [] }).get(
+        "all",
+      ),
+    ).toBe(2);
     expect(
       suitesBehind({
         suites: [configured[0] as never],
         files,
+        recorded: files,
         current: [],
       }).get("root"),
     ).toBe(2);
@@ -249,6 +257,7 @@ describe("suites behind", () => {
     const behind = suitesBehind({
       suites: configured,
       files: many,
+      recorded: many,
       current: new Set(["packages/app/b.ts"]),
     });
 
@@ -256,10 +265,35 @@ describe("suites behind", () => {
     expect(behind.get("root")).toBe(0);
   });
 
+  it("never counts a covered file the sensor did not record", () => {
+    const behind = suitesBehind({
+      suites: configured,
+      files: ["a.ts", "packages/app/__init__.py", "packages/app/b.ts"],
+      recorded: ["a.ts", "packages/app/b.ts"],
+      current: ["a.ts", "packages/app/b.ts"],
+    });
+
+    expect(behind.get("root")).toBe(0);
+    expect(behind.get("app")).toBe(0);
+  });
+
+  it("counts a recorded file that changed since", () => {
+    const behind = suitesBehind({
+      suites: configured,
+      files: ["a.ts", "packages/app/__init__.py", "packages/app/b.ts"],
+      recorded: ["a.ts", "packages/app/b.ts"],
+      current: ["a.ts"],
+    });
+
+    expect(behind.get("root")).toBe(0);
+    expect(behind.get("app")).toBe(1);
+  });
+
   it("returns 0 for a suite covering nothing", () => {
     const behind = suitesBehind({
       suites: [{ name: "web", directory: "web" }],
       files,
+      recorded: files,
       current: [],
     });
 
@@ -274,6 +308,7 @@ describe("suites behind", () => {
         { name: "prefix", directory: "packages/ap" },
       ],
       files: ["packages/app/b.ts"],
+      recorded: files,
       current: [],
     });
 

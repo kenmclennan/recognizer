@@ -15,6 +15,7 @@ describe("documentFreshness", () => {
     expect(documentFreshness(SCAN, measured, "t1")).toEqual({
       valid: true,
       current: ["a.py"],
+      recorded: ["a.py", "b.py"],
       outOfDate: 1,
       stale: true,
     });
@@ -24,6 +25,7 @@ describe("documentFreshness", () => {
     expect(documentFreshness(SCAN, {}, "t1")).toEqual({
       valid: false,
       current: [],
+      recorded: [],
       outOfDate: 0,
       stale: true,
     });

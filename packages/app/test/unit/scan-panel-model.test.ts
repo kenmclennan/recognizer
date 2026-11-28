@@ -1309,7 +1309,13 @@ describe("scanPanel freshness", () => {
     const given = base({ "a.py": "ha", "b.py": "hb" });
     const reported = { at: new Date(NOW).toISOString(), commit: "abcdef0123" };
     const answer = (stale: boolean) => ({
-      crap: { valid: true, current: ["a.py", "b.py"], outOfDate: 0, stale },
+      crap: {
+        valid: true,
+        current: ["a.py", "b.py"],
+        recorded: ["a.py", "b.py"],
+        outOfDate: 0,
+        stale,
+      },
     });
     const staleOf = (stale: boolean) =>
       scanPanel({

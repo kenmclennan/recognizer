@@ -114,13 +114,15 @@ function covers(directory: string, file: string): boolean {
 export function suitesBehind(input: {
   suites: readonly { name: string; directory: string }[];
   files: readonly string[];
+  recorded: ReadonlySet<string> | readonly string[];
   current: ReadonlySet<string> | readonly string[];
 }): Map<string, number> {
   const fresh = new Set(input.current);
+  const recorded = new Set(input.recorded);
   const behind = new Map(input.suites.map(({ name }) => [name, 0]));
 
   for (const file of input.files) {
-    if (fresh.has(file)) {
+    if (!recorded.has(file) || fresh.has(file)) {
       continue;
     }
 
