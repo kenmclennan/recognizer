@@ -391,3 +391,91 @@ describe("checkPlaceholders", () => {
     );
   });
 });
+
+describe("checkPlaceholders choices_by", () => {
+  const withChoicesBy = (choicesBy: Record<string, unknown>) => {
+    const manifest = thresholds();
+    const suite = manifest.suite_keys as { keys: Record<string, unknown>[] };
+
+    suite.keys = [
+      {
+        key: "tests.<name>.language",
+        type: "enum",
+        description: "the language",
+        example: "tests.unit.language a",
+        values: ["a", "b"],
+      },
+      {
+        key: "tests.<name>.runner",
+        type: "enum",
+        description: "the runner",
+        example: "tests.unit.runner x",
+        values: ["x", "y"],
+        choices_by: choicesBy,
+      },
+      {
+        key: "tests.<name>.env.<variable>",
+        type: "string",
+        description: "one variable",
+        example: "tests.unit.env.A b",
+      },
+    ];
+
+    return manifest;
+  };
+  const placeholdersOf = (manifest: Manifest) =>
+    checkPlaceholders({
+      command: "x",
+      current: 1,
+      run: { started: true, status: 0, stdout: "", stderr: "" },
+      leftovers: [],
+      document: manifest,
+      parsed: true,
+      manifest,
+    } as never);
+
+  it("passes a choices_by on a key of the manifest with options among the values", () => {
+    expect(
+      placeholdersOf(
+        withChoicesBy({
+          key: "tests.<name>.language",
+          choices: { a: [], b: ["x", "y"] },
+        }),
+      ),
+    ).toEqual({ name: "placeholders", status: "ok" });
+  });
+
+  it("fails a choices_by whose key is not a key of the manifest", () => {
+    const outcome = placeholdersOf(
+      withChoicesBy({ key: "tests.<name>.missing", choices: { a: [] } }),
+    );
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("tests.<name>.missing");
+  });
+
+  it("fails a choices_by option outside the setting's values", () => {
+    const outcome = placeholdersOf(
+      withChoicesBy({ key: "tests.<name>.language", choices: { a: ["z"] } }),
+    );
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("option z");
+  });
+
+  it("fails a choices_by on a setting that is not an enum", () => {
+    const manifest = withChoicesBy({
+      key: "tests.<name>.language",
+      choices: { a: [] },
+    });
+    const keys = (manifest.suite_keys as { keys: Record<string, unknown>[] })
+      .keys;
+
+    keys[1] = { ...keys[1], type: "string" };
+
+    const outcome = placeholdersOf(manifest);
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("only on an enum");
+  });
+});

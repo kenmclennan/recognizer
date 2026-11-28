@@ -88,7 +88,18 @@ def test_the_manifest_names_the_sensor_and_the_shared_facts(name):
     assert manifest["version"] == version("recognizer-sensors")
 
 
-DISPLAY_KEYS = {"label", "labels", "unit", "units", "order", "limit", "section", "scope", "switch"}
+DISPLAY_KEYS = {
+    "label",
+    "labels",
+    "unit",
+    "units",
+    "order",
+    "limit",
+    "section",
+    "scope",
+    "switch",
+    "choices_by",
+}
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -313,3 +324,24 @@ def test_crap_and_mutation_publish_the_principles_their_findings_cite():
         shared["code-coverage-guidelines"],
     ]
     assert build("mutation")["principles"] == [shared["mutation-testing"]]
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_the_runner_key_carries_the_runner_choices_by_language(name):
+    runner = next(
+        entry
+        for entry in build(name)["suite_keys"]["keys"]
+        if entry["key"] == "tests.<name>.runner"
+    )
+
+    assert runner["choices_by"] == {
+        "key": "tests.<name>.language",
+        "choices": config_schema.RUNNERS_BY_LANGUAGE,
+    }
+    others = [
+        entry
+        for entry in build(name)["suite_keys"]["keys"]
+        if entry["key"] != "tests.<name>.runner"
+    ]
+
+    assert all("choices_by" not in entry for entry in others)

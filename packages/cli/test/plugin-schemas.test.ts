@@ -60,6 +60,7 @@ describe("the manifest schema", () => {
       "section",
       "scope",
       "switch",
+      "choices_by",
     ];
     const {
       properties: { ...shown },
@@ -76,7 +77,7 @@ describe("the manifest schema", () => {
       properties: shown,
       not: { anyOf: exclusives.slice(0, 3) },
     }).toEqual(keys.properties.keys.items);
-    expect(exclusives).toHaveLength(6);
+    expect(exclusives).toHaveLength(7);
   });
 
   it("holds the protocol the CLI judges against", () => {

@@ -14,6 +14,7 @@ export interface Setting extends KeyEntry {
   section?: string;
   scope?: SettingScope;
   switch?: SettingSwitch;
+  choices_by?: { key: string; choices: Record<string, string[]> };
 }
 
 export interface CorePane {

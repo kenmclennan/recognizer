@@ -109,7 +109,7 @@ const facts = {};
   pick("suites");
   facts.suites = { where: q(".sm-where").textContent, cards: qa("details.sm-suite").length, open: [...qa("details.sm-suite")].map((n) => n.open), summary: text(qa(".sm-suite summary")) };
   facts.suitesAdd = q(".sm-add").textContent;
-  facts.savedSuite = { runner: q('[data-key="tests.unit.runner"]').value, runnerOptions: [...qa('[data-key="tests.unit.runner"] option')].map((n) => n.value), changedRows: qa(".sm-suite .sm-field.changed").length, amber: qa(".sm-suite input.changed, .sm-suite select.changed").length };
+  facts.savedSuite = { runnerRows: qa('[data-key="tests.unit.runner"]').length, languageRows: qa('[data-key="tests.unit.language"]').length, changedRows: qa(".sm-suite .sm-field.changed").length, amber: qa(".sm-suite input.changed, .sm-suite select.changed").length };
   pick("structure");
   const typedKey = "sensors.structure.duplication.min_nodes";
   const typedInput = q('input[name="' + typedKey + '"]');
@@ -122,7 +122,19 @@ const facts = {};
   modal.element.querySelector('input[name="suite-name"]').value = "added";
   q(".sm-add").click();
   facts.suiteCards = text(qa(".sm-suite-name"));
-  facts.suiteRows = text(qa(".sm-suite .sm-name")).slice(0, 7);
+  facts.suiteRows = text([...qa("details.sm-suite")].at(-1).querySelectorAll(".sm-name")).slice(0, 7);
+  const chooseLanguage = (name, value) => {
+    const select = q('[data-key="tests.' + name + '.language"]');
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const runnerRows = (name) => qa('[data-key="tests.' + name + '.runner"]');
+  facts.languageChoice = { before: runnerRows("added").length };
+  chooseLanguage("added", "python");
+  facts.languageChoice.python = runnerRows("added").length;
+  chooseLanguage("added", "typescript");
+  facts.languageChoice.typescript = runnerRows("added").length;
+  facts.languageChoice.options = [...runnerRows("added")[0].querySelectorAll("option")].map((n) => n.value).filter((v) => v !== "");
 
   const callsBeforeClose = port.calls.length;
   modal.close();
@@ -312,9 +324,9 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.loaded).toBe(true);
   });
 
-  it("shows no runner for a suite that sets none and no amber or reset on a saved suite field", () => {
-    expect(f.savedSuite.runner).toBe("");
-    expect(f.savedSuite.runnerOptions[0]).toBe("");
+  it("shows no Runner row for a Python suite and no amber or reset on a saved suite field", () => {
+    expect(f.savedSuite.languageRows).toBe(1);
+    expect(f.savedSuite.runnerRows).toBe(0);
     expect(f.savedSuite.changedRows).toBe(0);
     expect(f.savedSuite.amber).toBe(0);
   });
@@ -476,6 +488,13 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
       "Coverage report",
       "Coverage format",
     ]);
+  });
+
+  it("adds and removes the Runner row as a language is chosen in a card", () => {
+    expect(f.languageChoice.before).toBe(1);
+    expect(f.languageChoice.python).toBe(0);
+    expect(f.languageChoice.typescript).toBe(1);
+    expect(f.languageChoice.options).toEqual(["vitest", "jest"]);
   });
 
   it("has no Reset section text anywhere in the modal", () => {
