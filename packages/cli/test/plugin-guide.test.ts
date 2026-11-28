@@ -37,6 +37,16 @@ describe("recognizer help plugin-guide", () => {
     expect(pluginGuide()).toContain("not_measured");
   });
 
+  it("documents choices_by, its empty list and its fallback", () => {
+    const guide = pluginGuide();
+
+    expect(guide).toContain("choices_by ({ key, choices }");
+    expect(guide).toContain("an empty list means the setting takes no value");
+    expect(guide).toContain(
+      "a choices_by whose key is not a key of the manifest",
+    );
+  });
+
   it("the_guide_lists_every_event_kind", () => {
     const guide = pluginGuide();
 

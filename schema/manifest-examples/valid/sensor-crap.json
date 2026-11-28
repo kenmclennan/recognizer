@@ -49,9 +49,9 @@
     {
       "key": "overlay",
       "type": "path",
-      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect",
       "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/crap.json",
-      "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json"
+      "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json",
+      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect"
     }
   ],
   "metrics": [
@@ -216,7 +216,7 @@
       "id": "code-coverage-guidelines",
       "name": "Code coverage guidelines",
       "citation": {
-        "author": "Carlos Arguelles, Marko Ivanković and Adam Bender",
+        "author": "Carlos Arguelles, Marko Ivankovi\u0107 and Adam Bender",
         "work": "Code Coverage Best Practices, Google Testing Blog",
         "year": 2020,
         "locator": "60% acceptable, stated for a whole product; applied here per file and per member"
@@ -277,7 +277,20 @@
           "vitest",
           "jest"
         ],
-        "label": "Runner"
+        "label": "Runner",
+        "choices_by": {
+          "key": "tests.<name>.language",
+          "choices": {
+            "python": [],
+            "typescript": [
+              "vitest",
+              "jest"
+            ],
+            "kotlin": [],
+            "rust": [],
+            "csharp": []
+          }
+        }
       },
       {
         "key": "tests.<name>.env.<variable>",

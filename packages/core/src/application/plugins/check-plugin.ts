@@ -279,6 +279,54 @@ function manifestKeys(manifest: Manifest): string[] {
   ];
 }
 
+interface ChoicesBy {
+  key: string;
+  choices: Record<string, string[]>;
+}
+
+function choicesByProblems(manifest: Manifest): string[] {
+  const keys = new Set(manifestKeys(manifest));
+  const suite = manifest.suite_keys;
+  const settings = [
+    ...(manifest.settings as Record<string, unknown>[]),
+    ...(suite === undefined ? [] : (suite.keys as Record<string, unknown>[])),
+  ];
+
+  return settings.flatMap((setting) => {
+    const choicesBy = setting.choices_by as ChoicesBy | undefined;
+
+    if (choicesBy === undefined) {
+      return [];
+    }
+
+    const name = String(setting.key);
+    const found: string[] = [];
+    const values = (setting.values as string[] | undefined) ?? [];
+
+    if (setting.type !== "enum") {
+      found.push(`${name}: choices_by is allowed only on an enum setting`);
+    }
+
+    if (!keys.has(choicesBy.key)) {
+      found.push(
+        `${name}: choices_by key ${choicesBy.key} is not a key of ${manifest.name}`,
+      );
+    }
+
+    for (const [value, options] of Object.entries(choicesBy.choices)) {
+      for (const option of options) {
+        if (!values.includes(option)) {
+          found.push(
+            `${name}: choices_by option ${option} for ${value} is not among its values`,
+          );
+        }
+      }
+    }
+
+    return found;
+  });
+}
+
 function placeholderProblems(manifest: Manifest): string[] {
   const declared = manifest.placeholders ?? {};
   const problems: string[] = [];
@@ -362,7 +410,10 @@ export function checkPlaceholders(context: Context): PluginCheckResult {
     return needsManifest("placeholders");
   }
 
-  const problems = placeholderProblems(manifest);
+  const problems = [
+    ...placeholderProblems(manifest),
+    ...choicesByProblems(manifest),
+  ];
 
   return problems.length === 0
     ? ok("placeholders")

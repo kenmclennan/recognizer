@@ -364,8 +364,54 @@ def test_the_suite_keys_of_the_test_running_manifests_equal_the_pinned_tests_ent
         suite_keys = build(name)["suite_keys"]
 
         assert [
-            {key: value for key, value in entry.items() if key != "label"}
+            {key: value for key, value in entry.items() if key not in ("label", "choices_by")}
             for entry in suite_keys["keys"]
         ] == expected_keys
         assert all(entry["label"] for entry in suite_keys["keys"])
         assert suite_keys["section"] == expected_section[0]
+
+
+def test_the_runner_choices_agree_with_the_suite_parser():
+    from recognizer_sensors.config_schema import RUNNERS_BY_LANGUAGE, SUITE_KEYS
+    from recognizer_sensors.settings import SettingsError
+
+    keys = {entry["key"]: entry for entry in SUITE_KEYS}
+
+    assert set(RUNNERS_BY_LANGUAGE) == set(keys["tests.<name>.language"]["values"])
+
+    for options in RUNNERS_BY_LANGUAGE.values():
+        assert set(options) <= set(keys["tests.<name>.runner"]["values"])
+
+    def minimal(language, runner):
+        suite = {
+            "name": "unit",
+            "language": language,
+            "directory": ".",
+            "command": "run",
+            "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
+        }
+
+        if runner is not None:
+            suite["runner"] = runner
+
+        return suite
+
+    def accepted(language, runner):
+        try:
+            parse_suite(0, minimal(language, runner))
+        except SettingsError:
+            return False
+
+        return True
+
+    for language, options in RUNNERS_BY_LANGUAGE.items():
+        demands_runner = not accepted(language, None)
+
+        assert demands_runner == bool(options)
+
+        for runner in options:
+            assert accepted(language, runner)
+
+        if not options:
+            assert accepted(language, None)
+            assert not accepted(language, "vitest")

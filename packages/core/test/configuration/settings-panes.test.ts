@@ -282,6 +282,34 @@ describe("settingsPanes", () => {
     expect(names(without)).not.toContain("Test suites");
   });
 
+  it("passes a suite key's choices_by through unchanged", () => {
+    const choicesBy = {
+      key: "tests.<name>.language",
+      choices: { a: [], b: ["x"] },
+    };
+    const runner = sensor("zed", "Zed", [setting("limit", { label: "Zed" })], {
+      runs_tests: true,
+      suite_keys: {
+        section: {},
+        keys: [
+          setting("tests.<name>.runner", {
+            label: "Runner",
+            choices_by: choicesBy,
+          }),
+        ],
+      },
+    });
+    const panes = settingsPanes({
+      sensors: [runner],
+      describers: [],
+      published: published("sensors.zed.limit"),
+    });
+
+    expect(
+      panes.find((pane) => pane.id === "suites")?.suites?.keys[0]?.choices_by,
+    ).toEqual(choicesBy);
+  });
+
   it("shows the core panes with every plugin missing", () => {
     const panes = settingsPanes({
       sensors: [],

@@ -32,6 +32,7 @@ const DISPLAY_FIELDS = new Set([
   "section",
   "scope",
   "switch",
+  "choices_by",
 ]);
 
 const PLACEHOLDER = /<([a-z][a-z0-9_]*)>/g;

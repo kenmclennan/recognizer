@@ -436,6 +436,32 @@
             "machine"
           ]
         },
+        "choices_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "key",
+            "choices"
+          ],
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "choices": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
         "switch": {
           "type": "object",
           "additionalProperties": false,
@@ -529,6 +555,18 @@
               "unit",
               "units"
             ]
+          },
+          {
+            "required": [
+              "choices_by"
+            ],
+            "properties": {
+              "type": {
+                "not": {
+                  "const": "enum"
+                }
+              }
+            }
           },
           {
             "required": [

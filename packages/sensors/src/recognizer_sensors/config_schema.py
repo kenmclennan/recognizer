@@ -144,6 +144,14 @@ SUITE_SECTION = {
     "example": 'tests.unit.command "pytest"',
 }
 
+RUNNERS_BY_LANGUAGE = {
+    "python": [],
+    "typescript": ["vitest", "jest"],
+    "kotlin": [],
+    "rust": [],
+    "csharp": [],
+}
+
 SUITE_KEYS = (
     key(
         "tests.<name>.language",

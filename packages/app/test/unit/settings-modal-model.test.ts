@@ -399,7 +399,7 @@ describe("the repository model", () => {
   });
 
   it("labels each suite row by the published label in the order the sensor publishes", () => {
-    const one = model("tests:\n  - name: unit\n    language: python\n");
+    const one = model("tests:\n  - name: unit\n    language: typescript\n");
 
     expect(one.suiteRows("unit").map((row) => row.label)).toEqual([
       "Language",
@@ -411,6 +411,129 @@ describe("the repository model", () => {
       "Coverage format",
     ]);
   });
+});
+
+describe("the Runner row follows the suite's language through choices_by", () => {
+  const CONFIG = [
+    "tests:",
+    "  - name: py",
+    "    language: python",
+    "  - name: web",
+    "    language: typescript",
+    "  - name: bare",
+    "  - name: odd",
+    "    language: cobol",
+    "",
+  ].join("\n");
+  const runnerOf = (one: ReturnType<typeof model>, name: string) =>
+    one.suiteRows(name).find((row) => row.label === "Runner");
+
+  it("leaves the Runner row out for a language with no options, keeping the other rows", () => {
+    const rows = model(CONFIG).suiteRows("py");
+
+    expect(rows.map((row) => row.label)).toEqual([
+      "Language",
+      "Directory",
+      "Command",
+      "Activate",
+      "Coverage report",
+      "Coverage format",
+    ]);
+  });
+
+  it("shows the Runner row with the choices of a language that has options", () => {
+    expect(runnerOf(model(CONFIG), "web")?.setting.values).toEqual([
+      "vitest",
+      "jest",
+    ]);
+  });
+
+  it("shows the Runner row with the setting's own values for a suite with no language", () => {
+    expect(runnerOf(model(CONFIG), "bare")?.setting.values).toEqual([
+      "vitest",
+      "jest",
+    ]);
+  });
+
+  it("shows the Runner row with the setting's own values for a language choices does not list", () => {
+    const one = model(CONFIG);
+
+    expect(runnerOf(one, "odd")?.setting.values).toEqual(["vitest", "jest"]);
+  });
+
+  it("changes the rows when a language is staged on the suite", () => {
+    const one = model(CONFIG);
+
+    expect(runnerOf(one, "bare")).toBeDefined();
+
+    one.stage("tests.bare.language", "python");
+
+    expect(runnerOf(one, "bare")).toBeUndefined();
+    expect(one.suiteRows("bare").length).toBeGreaterThan(1);
+
+    one.stage("tests.bare.language", "typescript");
+
+    expect(runnerOf(one, "bare")).toBeDefined();
+  });
+
+  it("keeps the Runner row for every language when the manifest has no choices_by", () => {
+    const one = createSettingsModel({
+      panes: panesFor(["crap", "mutation"], PUBLISHED, (sensors) => {
+        for (const sensor of sensors) {
+          for (const key of (
+            sensor as unknown as { suite_keys?: { keys: object[] } }
+          ).suite_keys?.keys ?? []) {
+            delete (key as { choices_by?: unknown }).choices_by;
+          }
+        }
+      }),
+      published: PUBLISHED,
+      configText: CONFIG,
+      machine: MACHINE,
+      repository: true,
+    });
+
+    expect(runnerOf(one, "py")?.setting.values).toEqual(["vitest", "jest"]);
+  });
+});
+
+describe("the committed sensor manifests", () => {
+  it.each(["crap", "mutation"])(
+    "%s publishes the runner choices for five languages",
+    (name) => {
+      const manifest = JSON.parse(
+        readFileSync(
+          join(REPO, `schema/manifest-examples/valid/sensor-${name}.json`),
+          "utf8",
+        ),
+      ) as {
+        suite_keys: {
+          keys: {
+            key: string;
+            choices_by?: { choices: Record<string, string[]> };
+          }[];
+        };
+      };
+      const runner = manifest.suite_keys.keys.find(
+        (key) => key.key === "tests.<name>.runner",
+      );
+      const choices = runner?.choices_by?.choices ?? {};
+
+      expect(Object.keys(choices).sort()).toEqual([
+        "csharp",
+        "kotlin",
+        "python",
+        "rust",
+        "typescript",
+      ]);
+      expect(choices.typescript).toHaveLength(2);
+      expect(
+        Object.entries(choices)
+          .filter(([language]) => language !== "typescript")
+          .map(([, options]) => options),
+      ).toEqual([[], [], [], []]);
+    },
+  );
 });
 
 describe("the Structural analysis pane's complexity limit toggles through its switch key", () => {

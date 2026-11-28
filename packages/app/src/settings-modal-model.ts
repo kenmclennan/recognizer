@@ -486,6 +486,23 @@ export function createSettingsModel(input: SettingsModelInput): SettingsModel {
       .sort();
   };
 
+  const optionsFor = (setting: Setting, name: string): Setting | null => {
+    const by = setting.choices_by;
+
+    if (by === undefined) {
+      return setting;
+    }
+
+    const value = repositoryValue(by.key.replace(PLACEHOLDER, name));
+    const choices = value === null ? undefined : by.choices[value];
+
+    if (choices === undefined) {
+      return setting;
+    }
+
+    return choices.length === 0 ? null : { ...setting, values: choices };
+  };
+
   const suiteRows = (name: string): SuiteRow[] =>
     suiteTemplates.flatMap((setting): SuiteRow[] => {
       const names = [...setting.key.matchAll(PLACEHOLDER)].map(
@@ -493,13 +510,17 @@ export function createSettingsModel(input: SettingsModelInput): SettingsModel {
       );
 
       if (names.length === 1) {
-        return [
-          {
-            key: setting.key.replace(PLACEHOLDER, name),
-            label: setting.label ?? setting.key,
-            setting,
-          },
-        ];
+        const offered = optionsFor(setting, name);
+
+        return offered === null
+          ? []
+          : [
+              {
+                key: setting.key.replace(PLACEHOLDER, name),
+                label: setting.label ?? setting.key,
+                setting: offered,
+              },
+            ];
       }
 
       return suitePrefixKeys(name).flatMap((key) => {

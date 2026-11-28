@@ -4,6 +4,7 @@ from importlib.metadata import version
 from recognizer_sensors.config_schema import (
     CRAP_KEYS,
     MUTATION_KEYS,
+    RUNNERS_BY_LANGUAGE,
     SUITE_KEYS,
     SUITE_PLACEHOLDERS,
     SUITE_SECTION,
@@ -366,10 +367,29 @@ SUITE_LABELS = {
 }
 
 
+SUITE_CHOICES_BY = {
+    "tests.<name>.runner": {
+        "key": "tests.<name>.language",
+        "choices": RUNNERS_BY_LANGUAGE,
+    },
+}
+
+
 def suite_keys() -> dict:
     return {
         "section": SUITE_SECTION,
-        "keys": [{**entry, "label": SUITE_LABELS[entry["key"]]} for entry in SUITE_KEYS],
+        "keys": [
+            {
+                **entry,
+                "label": SUITE_LABELS[entry["key"]],
+                **(
+                    {"choices_by": SUITE_CHOICES_BY[entry["key"]]}
+                    if entry["key"] in SUITE_CHOICES_BY
+                    else {}
+                ),
+            }
+            for entry in SUITE_KEYS
+        ],
     }
 
 
