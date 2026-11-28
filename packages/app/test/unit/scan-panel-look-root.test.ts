@@ -136,6 +136,28 @@ const commandSensors =
       }),
     );
   };
+const stamping =
+  (name: string, program: Program): Program =>
+  (call) => {
+    const result = program(call);
+
+    if (call.args[0] !== "run") {
+      return result;
+    }
+
+    const at = (flag: string) => call.args[call.args.indexOf(flag) + 1] ?? "";
+
+    return Promise.resolve(result).then((done) => {
+      if (done.status === 0) {
+        call.files.writeFile(
+          at("--output"),
+          findingsDoc(name, CURRENT)(at("--commit")),
+        );
+      }
+
+      return done;
+    });
+  };
 const describerLine: Program = () => ({
   started: true,
   status: 0,
@@ -269,10 +291,11 @@ const SCENARIOS1 = (): Record<string, LookScenario> => ({
         {
           name: "cleared",
           run: async (root: Root) => {
-            await root.service.call("results.clear", {
-              repository: root.repository,
-              plugin: "review",
-            });
+            const explorer = root.view.explorer();
+
+            await explorer?.host.port.clearResults("review");
+            explorer?.host.refresh();
+            await explorer?.reloadSensors();
           },
         },
       ],
@@ -484,9 +507,25 @@ const heldRun = () => {
   return made({
     ticks: { describe: true, analysis: true, ticked: ["tally", "crap"] },
     describer: describerHolding(describing),
-    sensors: { tally: heldProgram(sensorProgram("tally"), tally) },
-    programs: { "recognizer-sense-crap": heldProgram(crapProgram(), crap) },
+    sensors: {
+      tally: heldProgram(stamping("tally", sensorProgram("tally")), tally),
+    },
+    programs: {
+      "recognizer-sense-crap": heldProgram(
+        stamping("crap", crapProgram()),
+        crap,
+      ),
+    },
     rest: {
+      plans: [
+        {
+          ticks: {
+            describe: true,
+            analysis: true,
+            ticked: ["tally", "crap"],
+          },
+        },
+      ],
       stages: [
         { name: "idle", run: async () => {} },
         {
@@ -979,10 +1018,9 @@ await group(["report", "reportCleared"], async () => {
     clear: reportRow()?.querySelector(".sensor-clear")?.textContent ?? "",
     afterList: reportRow() !== null && rp.all(".scan-row").at(-1).compareDocumentPosition(reportRow()) === Node.DOCUMENT_POSITION_FOLLOWING,
   };
-  click(reportRow().querySelector(".sensor-clear"));
-  await tick();
   await rp.go("cleared");
-  await tick(); await tick();
+  click(reportRow().querySelector(".sensor-clear"));
+  await tick(); await tick(); await tick();
   facts.reportCleared = { removed: rp.sentOf("core_call").filter((one) => one.args.op === "results.clear").map((one) => one.args.args.plugin), present: reportRow() !== null };
 });
 
@@ -1256,7 +1294,7 @@ await group(["run"], async () => {
   facts.run.afterDuplication = c.panel();
   await c.go("done");
   await until(() => c.q(".scan-stop") === null, "the scan to finish");
-  await tick();
+  await tick(); await tick(); await tick();
   facts.run.after = c.panel();
   facts.run.footerAfter = { text: c.scanLineText(), buttons: c.footerButtons() };
   facts.run.written = c.writes().map((w) => w.ticked);
@@ -1480,11 +1518,11 @@ ${END}
 type Facts = ReturnType<typeof JSON.parse>;
 type Collected = { facts: Facts; errors: Record<string, string> };
 const SHORT_AGE = /^(current|now|\d+[mhd])$/;
-const _GREEN = "rgb(63, 185, 80)";
+const GREEN = "rgb(63, 185, 80)";
 const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
 const _MUTED = "rgb(145, 152, 161)";
-const _NAMES = [
+const NAMES = [
   "Structural analysis",
   "Descriptions",
   "C.R.A.P.",
@@ -1749,6 +1787,68 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       expect(w.panelWidth).toBeLessThanOrEqual(width);
     },
   );
+
+  it("matches the run card while running: A scan is running., every planned row running, the Scanning card with a row bar and a single Stop", () => {
+    expect(f.run.first).not.toBeNull();
+    expect(f.run.heldSamples).toBe(4);
+    expect(f.run.heldPlans).toBe(1);
+    expect(f.run.plans).toEqual([
+      {
+        describe: "stale",
+        analysis: true,
+        sense: ["tally", "crap"],
+        modules: ["app/a.py", "app/b.py"],
+        plannedMs: {},
+      },
+    ]);
+    expect(f.run.first.header).toBe("A scan is running.");
+    expect(
+      f.run.first.rows
+        .filter((r: Facts) => r.spinner > 0)
+        .map((r: Facts) => r.key),
+    ).toEqual(["describe", "crap", "tally"]);
+    expect([1, 2, 4].map((i) => f.run.first.rows[i].state)).toEqual([
+      "0 of 2",
+      "running",
+      "running",
+    ]);
+    expect(f.run.first.rows[1].color).toBe(ACCENT);
+    expect(f.run.first.summary).toMatchObject({
+      shape: "run-card",
+      tone: "run",
+      head: "ScanningNo estimate yet",
+      bar: 0,
+      spinning: true,
+    });
+    expect(f.run.first.rowBars).toBe(1);
+    expect(f.run.first.buttons).toEqual([
+      { text: "Stop", disabled: false, spinner: 0 },
+    ]);
+    expect(f.run.footer.text).toBe(
+      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 2 files",
+    );
+    expect(f.run.footer.buttons).toEqual(["bell"]);
+    expect(f.run.footerAfter.text).toBe("");
+    expect(f.run.footerAfter.buttons).toEqual(["bell"]);
+    expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
+  });
+
+  it("moves each row on as it finishes and draws no bar once the run is over", () => {
+    const row = (panel: Facts, key: string) =>
+      panel.rows.find((r: Facts) => r.key === key);
+
+    expect(row(f.run.afterDescribe, "tally").state).toBe("running");
+    expect(row(f.run.afterDescribe, "crap").state).toBe("running");
+    expect(row(f.run.afterDuplication, "crap").state).toBe("now");
+    expect(row(f.run.afterDuplication, "crap").color).toBe(GREEN);
+    expect(row(f.run.afterDuplication, "tally").state).toBe("running");
+    expect(row(f.run.after, "tally").state).toBe("current");
+    expect(row(f.run.after, "crap").state).toBe("now");
+    expect(f.run.after.header).toBe("Ran just now");
+    expect(f.run.after.rowBars).toBe(0);
+    expect(f.run.after.summary.bar).toBe(0);
+    expect(f.run.after.summary.shape).not.toBe("running");
+  });
 
   it("keeps a tests-running tick after the scan it ran in and writes it", () => {
     expect(f.run.crapTickAfter).toBe(true);
@@ -2021,5 +2121,17 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshComplete.rowBars).toBe(0);
     expect(f.freshComplete.button).toBe("Up to date");
     expect(f.freshComplete.disabled).toBe(true);
+  });
+
+  it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
+    expect(f.report.names).toEqual(NAMES);
+    expect(f.report.listCount).toBe(7);
+    expect(f.report.ticks).toBe(0);
+    expect(f.report.chip).toBe("reported 3 minutes ago");
+    expect(f.report.commit).toBe("feed123");
+    expect(f.report.clear).toBe("Clear");
+    expect(f.report.afterList).toBe(true);
+    expect(f.reportCleared.removed).toEqual(["review"]);
+    expect(f.reportCleared.present).toBe(false);
   });
 });

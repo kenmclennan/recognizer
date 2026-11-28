@@ -64,6 +64,9 @@ export function installRecording(
   const batchEnds = new Set(given.batches ?? []);
   let served = 0;
   let joining = false;
+  const commandMarks = given.commandMarks ?? {};
+  let commandLimit =
+    options.until === undefined ? undefined : commandMarks[options.until];
   let limit =
     options.until === undefined
       ? recording.events.length
@@ -196,6 +199,7 @@ export function installRecording(
               args,
               options.until === undefined ? undefined : limit,
               call,
+              commandLimit,
             );
 
       const claim = (reply as { ok?: unknown } | null)?.ok;
@@ -239,6 +243,7 @@ export function installRecording(
     },
     release: (mark) => {
       limit = marks[mark] ?? limit;
+      commandLimit = commandMarks[mark] ?? commandLimit;
 
       if (!stopped && started && !dripping) {
         dripping = true;

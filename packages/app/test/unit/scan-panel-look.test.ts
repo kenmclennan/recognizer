@@ -325,25 +325,6 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick();
   facts.loaded = { rows: slow.rows().map((r) => r.name), buttons: slow.all(".scan-buttons button").length };
 
-  const REPORT = json({ findings_version: 1, sensor: { name: "review", version: "reported" }, commit: "feed123abc", modified: false, settings: {}, reported_at: new Date(Date.now() - 3 * 60000).toISOString(), findings: [] });
-  const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, INSTALLED);
-  const rp = await mount(fakeScan(), reportSensors);
-  click(rp.q(".rail-scan"));
-  await tick();
-  const reportRow = () => rp.q('.sensor-row.reported[data-sensor="review"]');
-  facts.report = {
-    names: rp.rows().map((r) => r.name),
-    listCount: rp.all(".scan-row").length,
-    ticks: reportRow()?.querySelectorAll("input").length ?? null,
-    chip: reportRow()?.querySelector(".sensor-chip").textContent ?? "",
-    commit: reportRow()?.querySelector(".sensor-commit").textContent ?? "",
-    clear: reportRow()?.querySelector(".sensor-clear")?.textContent ?? "",
-    afterList: reportRow() !== null && rp.all(".scan-row").at(-1).compareDocumentPosition(reportRow()) === Node.DOCUMENT_POSITION_FOLLOWING,
-  };
-  click(reportRow().querySelector(".sensor-clear"));
-  await tick(); await tick();
-  facts.reportCleared = { removed: [...reportSensors.removed], present: reportRow() !== null };
-
   const viewJson = (steps) => JSON.stringify({ schema_version: 4, description: "Shows a.", commit: "cur1234", steps }, null, 2) + "\\n";
   const scopeFake = fakeScan();
   const sc = await mount(scopeFake, undefined, true, { demo: viewJson([{ kind: "pick", module: "app/a.py" }]) });
@@ -669,18 +650,6 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 type Facts = ReturnType<typeof JSON.parse>;
 
 const _SHORT_AGE = /^(current|now|\d+[mhd])$/;
-const GREEN = "rgb(63, 185, 80)";
-const ACCENT = "rgb(68, 147, 248)";
-const NAMES = [
-  "Structural analysis",
-  "Descriptions",
-  "C.R.A.P.",
-  "Mutation",
-  "tally",
-  "alpha",
-  "beta",
-];
-
 const _states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
 
 describe.skipIf(webkit === undefined)("the Scan panel", () => {
@@ -699,71 +668,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshBack.button).toBe("Up to date");
     expect(f.freshBack.secondary).toBe(0);
     expect(f.freshBack.mode).toBe("Incremental");
-  });
-
-  it("matches the mock while running: Scanning…, every planned row running, the one summary bar and a row bar, a disabled Running button and a Stop beside it", () => {
-    expect(f.run.first).not.toBeNull();
-    expect(f.run.heldSamples).toBe(0);
-    expect(f.run.heldPlans).toBe(0);
-    expect(f.run.plans).toEqual([
-      {
-        describe: true,
-        describeAll: false,
-        analysis: true,
-        sense: ["tally", "crap"],
-        modules: ["app/a.py", "app/b.py"],
-        plannedMs: {},
-      },
-    ]);
-    expect(f.run.first.header).toBe(
-      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 files",
-    );
-    expect(
-      f.run.first.rows
-        .filter((r: Facts) => r.spinner > 0)
-        .map((r: Facts) => r.key),
-    ).toEqual(["describe", "crap", "tally"]);
-    expect([1, 2, 4].map((i) => f.run.first.rows[i].state)).toEqual([
-      "0 of 1",
-      "running",
-      "running",
-    ]);
-    expect(f.run.first.rows[1].color).toBe(ACCENT);
-    expect(f.run.first.summary).toMatchObject({
-      shape: "running",
-      tone: "run",
-      head: "Running Descriptions, C.R.A.P. and tally on 2 files",
-      bar: 1,
-      spinning: true,
-    });
-    expect(f.run.first.rowBars).toBe(1);
-    expect(f.run.first.buttons).toEqual([
-      { text: "Running", disabled: true, spinner: 1 },
-      { text: "Stop", disabled: false, spinner: 0 },
-    ]);
-    expect(f.run.footer.text).toBe(
-      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 files",
-    );
-    expect(f.run.footer.buttons).toEqual(["bell"]);
-    expect(f.run.footerAfter.text).toBe("");
-    expect(f.run.footerAfter.buttons).toEqual(["bell"]);
-    expect(f.run.first.rows.every((r: Facts) => r.disabled)).toBe(true);
-  });
-
-  it("moves each row on as it finishes and draws no bar once the run is over", () => {
-    const row = (panel: Facts, key: string) =>
-      panel.rows.find((r: Facts) => r.key === key);
-
-    expect(row(f.run.afterDescribe, "tally").state).toBe("running");
-    expect(row(f.run.afterDescribe, "crap").state).toBe("running");
-    expect(row(f.run.afterDuplication, "tally").state).toBe("now");
-    expect(row(f.run.afterDuplication, "tally").color).toBe(GREEN);
-    expect(row(f.run.afterDuplication, "crap").state).toBe("running");
-    expect(row(f.run.after, "tally").state).toBe("now");
-    expect(f.run.after.header).toBe("Ran just now");
-    expect(f.run.after.rowBars).toBe(0);
-    expect(f.run.after.summary.bar).toBe(0);
-    expect(f.run.after.summary.shape).not.toBe("running");
   });
 
   it("refuses a second scan while one runs", () => {
@@ -815,17 +719,5 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("shows no text and no Describe button when a file has no line", () => {
     expect(f.missing.text).toBe("");
     expect(f.missing.describe).toBe(0);
-  });
-
-  it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {
-    expect(f.report.names).toEqual(NAMES);
-    expect(f.report.listCount).toBe(7);
-    expect(f.report.ticks).toBe(0);
-    expect(f.report.chip).toBe("reported 3 minutes ago");
-    expect(f.report.commit).toBe("feed123");
-    expect(f.report.clear).toBe("Clear");
-    expect(f.report.afterList).toBe(true);
-    expect(f.reportCleared.removed).toEqual(["review"]);
-    expect(f.reportCleared.present).toBe(false);
   });
 });
