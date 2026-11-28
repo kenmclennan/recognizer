@@ -15,9 +15,15 @@ type Root = Awaited<ReturnType<typeof inProcessAppRoot>>;
 
 export type SuiteScript = { name: string; language: string }[];
 
+export type Gap = { code: string; suite: string | null; line: string };
+
 export type SensorsScript = Record<
   string,
-  SensorScript & { runsTests?: boolean; suites?: SuiteScript }
+  SensorScript & {
+    runsTests?: boolean;
+    suites?: SuiteScript;
+    gaps?: Gap[] | (() => Gap[]);
+  }
 >;
 
 const SUITE_KEYS = {
@@ -63,7 +69,7 @@ export function sensorsOf(scripts: SensorsScript): {
   const declared = new Map<string, string>();
 
   for (const [name, script] of Object.entries(scripts)) {
-    const { runsTests = false, suites = [], ...rest } = script;
+    const { runsTests = false, suites = [], gaps, ...rest } = script;
     const base = sensorProgram(name, rest);
 
     lines.push(
@@ -83,6 +89,17 @@ export function sensorsOf(scripts: SensorsScript): {
           started: true,
           status: 0,
           stdout: manifestFor(name, runsTests),
+          stderr: "",
+        };
+      }
+
+      if (call.args[0] === "check" && gaps !== undefined) {
+        return {
+          started: true,
+          status: 0,
+          stdout: JSON.stringify({
+            gaps: typeof gaps === "function" ? gaps() : gaps,
+          }),
           stderr: "",
         };
       }
