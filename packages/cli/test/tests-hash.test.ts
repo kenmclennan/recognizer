@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 import { testsHashPortsOf } from "./analysis-ports.js";
+import { registryFolderFor } from "./plugin-registry-shim.js";
 import { writeStubScanner } from "./stub-test-reporter.js";
 
 const EXPECTED = JSON.parse(
@@ -36,7 +37,12 @@ function stubbed(entries: Record<string, string> = {}) {
   const base = nodeIo();
   const io: Io = {
     ...base,
-    env: (name) => (name === "PATH" ? directory : base.env(name)),
+    env: (name) =>
+      name === "PATH"
+        ? directory
+        : name === "RECOGNIZER_PLUGIN_DIRS"
+          ? `:${registryFolderFor(directory)}`
+          : base.env(name),
   };
 
   return { io, log, ports: testsHashPortsOf(io) };

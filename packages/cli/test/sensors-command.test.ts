@@ -5,8 +5,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, type RunResult, run } from "../src/cli.js";
 import { capture } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
-
-const BIN = "/stub-bin";
+import { REGISTRY_FOLDER, registeredPlugins } from "./registered-plugins.js";
 
 function answering(
   failing: readonly string[] = [],
@@ -15,16 +14,21 @@ function answering(
   manifestOf: (name: string) => unknown = exampleManifest,
 ) {
   const captured = capture();
+  const registered = registeredPlugins(
+    installed.map((name) => ({ kind: "sensor" as const, name })),
+  );
   const io: Io = {
     ...captured.io,
-    env: (name) => (name === "PATH" ? BIN : captured.io.env(name)),
+    env: (name) => registered.env[name] ?? captured.io.env(name),
+    exists: (path) => path === REGISTRY_FOLDER || captured.io.exists(path),
     readDir: (path) =>
-      path === BIN
-        ? installed.map((name) => ({
-            name: `recognizer-sense-${name}`,
+      path === REGISTRY_FOLDER
+        ? Object.keys(registered.files).map((file) => ({
+            name: file.slice(REGISTRY_FOLDER.length + 1),
             kind: "file" as const,
           }))
         : captured.io.readDir(path),
+    readFile: (path) => registered.files[path] ?? captured.io.readFile(path),
     run: (command): RunResult => {
       const name = command.replace("recognizer-sense-", "");
 
@@ -47,7 +51,7 @@ function answering(
 }
 
 describe("recognizer sensors", () => {
-  it("lists the installed sensors from PATH and no fixed pair", () => {
+  it("lists the registered sensors and no fixed pair", () => {
     const own = (name: string) => ({ ...exampleManifest("crap"), name });
     const { io, out, err } = answering([], [], ["tally", "margin"], own);
 

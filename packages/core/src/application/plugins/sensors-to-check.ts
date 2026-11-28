@@ -9,7 +9,10 @@ import { readManifestCommand } from "./read-manifest.js";
 import { selectSensors } from "./select-sensors.js";
 
 export function sensorsToCheck(
-  ports: Pick<PluginPorts, "programs" | "validators" | "repository">,
+  ports: Pick<
+    PluginPorts,
+    "programs" | "validators" | "repository" | "registrations"
+  >,
   root: string,
   name: string | undefined,
   withSuites = true,

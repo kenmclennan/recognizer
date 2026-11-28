@@ -14,7 +14,7 @@ import {
 import type { DocumentValidators } from "./ports/document-validators.js";
 import type { PluginRegistrations } from "./ports/plugin-registrations.js";
 import type { Programs } from "./ports/programs.js";
-import { readManifestCommand, readManifestOf } from "./read-manifest.js";
+import { readManifestCommand } from "./read-manifest.js";
 
 export interface InstalledMetric {
   name: string;
@@ -58,8 +58,6 @@ export interface InstalledRead {
   registered?: Record<string, InstalledSensorEntry>;
   registeredUnreadable?: UnreadableSensor[];
 }
-
-export type ManifestReader = (prefix: string[]) => ManifestRead;
 
 export type ManifestCommandReader = (command: string[]) => ManifestRead;
 
@@ -161,27 +159,11 @@ function registeredSensors(ports: {
 }
 
 export function installedSensorNames(ports: {
-  programs: Programs;
   registrations?: PluginRegistrations;
 }): string[] {
-  const registered = registeredSensors(ports);
-
-  if (registered.length > 0) {
-    return registered.map((entry) => entry.name).sort();
-  }
-
-  const names = new Set<string>();
-
-  for (const entry of ports.programs.listOnPath([SENSE_PREFIX])) {
-    if (
-      entry.name.startsWith(SENSE_PREFIX) &&
-      entry.name.length > SENSE_PREFIX.length
-    ) {
-      names.add(entry.name.slice(SENSE_PREFIX.length));
-    }
-  }
-
-  return [...names].sort();
+  return registeredSensors(ports)
+    .map((entry) => entry.name)
+    .sort();
 }
 
 export function readInstalledSensors(
@@ -190,7 +172,6 @@ export function readInstalledSensors(
     validators: DocumentValidators;
     registrations?: PluginRegistrations;
   },
-  read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
   names: readonly string[] = installedSensorNames(ports),
   readCommand: ManifestCommandReader = (words) =>
     readManifestCommand(ports, words),
@@ -201,10 +182,7 @@ export function readInstalledSensors(
 
   for (const name of present.filter((one) => names.includes(one))) {
     const own = registered.find((entry) => entry.name === name);
-    const manifest =
-      own === undefined
-        ? read([`${SENSE_PREFIX}${name}`])
-        : readCommand(own.manifest);
+    const manifest = readCommand((own as RegisteredPlugin).manifest);
 
     if (manifest.ok && manifest.manifest.kind === "sensor") {
       result.sensors.push(entryOf(manifest.manifest));

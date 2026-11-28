@@ -12,6 +12,7 @@ import {
   readPolicyArea,
   scannerProblems as scannerProblemsOf,
   settingProblems,
+  type UnregisteredProgram,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -24,6 +25,7 @@ import { manifestFor } from "./plugin-path.js";
 
 type DoctorFacts = Context & {
   testsUnrun: { name: string; display?: string }[];
+  unregisteredPrograms: UnregisteredProgram[];
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
 };
@@ -105,6 +107,7 @@ function buildReport(given: DoctorFacts) {
     scanners: given.scanners,
     plugins: given.plugins,
     testsUnrun: given.testsUnrun,
+    unregisteredPrograms: given.unregisteredPrograms,
     protocol: documentValidators.facts,
   });
 }
@@ -135,6 +138,7 @@ function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
     languages: [],
     scans: () => ({ state: "missing" }),
     testsUnrun: [],
+    unregisteredPrograms: [],
     scanners: [
       {
         kind: "scanner",
@@ -187,6 +191,37 @@ describe("doctor: a plugin on the previous protocol", () => {
 
     expect(document.warnings).toBe(1);
     expect(document.areas[3].problems[0].severity).toBe("warning");
+  });
+});
+
+describe("doctor: a program installed on PATH but not registered", () => {
+  const unregistered: UnregisteredProgram = {
+    kind: "sensor",
+    program: "recognizer-sense-stray",
+    path: "/bin/recognizer-sense-stray",
+    installLine: "brew install recognizer-sense-stray",
+  };
+
+  it("is a warning in its kind's area with its install line, so the report is ok", () => {
+    const report = buildReport(
+      facts({
+        configText: null,
+        plugins: () => [],
+        unregisteredPrograms: [unregistered],
+      }),
+    );
+    const sensors = report.areas.find((one) => one.name === "sensors");
+
+    expect(report.ok).toBe(true);
+    expect(sensors?.problems).toHaveLength(1);
+    expect(sensors?.problems[0]).toMatchObject({
+      code: "unregistered-program",
+      subject: "recognizer-sense-stray",
+      severity: "warning",
+    });
+    expect(JSON.stringify(sensors?.problems[0])).toContain(
+      "brew install recognizer-sense-stray",
+    );
   });
 });
 

@@ -43,5 +43,6 @@ export const PROBLEM_TITLES: Record<
   "plugin-settings": (name) => `A ${name} setting is wrong`,
   "describer-gap": (name) => `The ${name} describer is not ready`,
   "unregistered-plugin": (name) => `The ${name} plugin is not registered`,
+  "unregistered-program": (name) => `${name} is installed but not registered`,
   "sensor-manifest-missing": () => "Sensor names no manifest command",
 };

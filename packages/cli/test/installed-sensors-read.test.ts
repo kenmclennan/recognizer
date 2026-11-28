@@ -52,17 +52,17 @@ describe("readInstalledSensors", () => {
     const manifests = { mutation: declaring, crap: bare as typeof crap };
     const read = readInstalledSensors(
       examplePorts(),
-      (prefix) => ({
+      ["mutation", "crap"],
+      (words) => ({
         ok: true,
         manifest:
           manifests[
-            (prefix[0] as string).replace(
+            (words[0] as string).replace(
               "recognizer-sense-",
               "",
             ) as keyof typeof manifests
           ],
       }),
-      ["mutation", "crap"],
     );
     const first = read.sensors.find((one) => one.name === "mutation");
     const second = read.sensors.find((one) => one.name === "crap");

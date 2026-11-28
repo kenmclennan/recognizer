@@ -4,6 +4,7 @@ import {
   type InstalledRead,
   type Manifest,
   type ManifestRead,
+  type PluginRegistrations,
   type RegisteredSensorInput,
   readInstalledSensors,
   readRegisteredSensors,
@@ -25,34 +26,31 @@ export function exampleManifest(name: string): Manifest {
 }
 
 export function examplePorts(names: readonly string[] = ["crap", "mutation"]) {
-  const io = {
-    ...nodeIo(),
-    env: (name: string) => (name === "PATH" ? "/stub-bin" : undefined),
-    readDir: (path: string) =>
-      path === "/stub-bin"
-        ? names.map((name) => ({
-            name: `recognizer-sense-${name}`,
-            kind: "file" as const,
-          }))
-        : [],
+  const plugins = names.map((name) => ({
+    kind: "sensor" as const,
+    name,
+    command: [`recognizer-sense-${name}`],
+    manifest: [`recognizer-sense-${name}`, "manifest"],
+    source: "user" as const,
+  }));
+  const registrations: PluginRegistrations = {
+    entries: () => ({ plugins, shadowed: [], unreadable: [], describer: null }),
+    register: () => ({ status: "refused", reason: "read only" }),
+    unregister: () => ({ status: "not-registered" }),
   };
 
-  return { programs: new ProgramsAdapter(io), validators: documentValidators };
+  return {
+    programs: new ProgramsAdapter(nodeIo()),
+    validators: documentValidators,
+    registrations,
+  };
 }
 
 export function readExamples(
   failing: readonly string[] = [],
   names?: readonly string[],
 ): InstalledRead {
-  const read = (prefix: string[]): ManifestRead => {
-    const name = (prefix[0] as string).replace("recognizer-sense-", "");
-
-    return failing.includes(name)
-      ? { ok: false, reason: `${prefix[0]} manifest exited 1` }
-      : { ok: true, manifest: exampleManifest(name) };
-  };
-
-  return readInstalledSensors(examplePorts(), read, names);
+  return readInstalledSensors(examplePorts(), names, readCommandOf(failing));
 }
 
 function readCommandOf(failing: readonly string[]) {

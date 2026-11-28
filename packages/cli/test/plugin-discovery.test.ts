@@ -39,8 +39,8 @@ function setup() {
 }
 
 describe("discoverPlugins", () => {
-  it("lists a readable plugin, names an unreadable one and ignores a repeat of a name later on PATH", () => {
-    const { first, second, pathIo: io } = setup();
+  it("lists a readable registered plugin and names an unreadable one", () => {
+    const { first, io } = setup();
 
     writeShim(
       first,
@@ -48,11 +48,6 @@ describe("discoverPlugins", () => {
       manifestFor("scanner", "a", { version: "1.0.0" }),
     );
     writeShim(first, "recognizer-scan-b", "not a manifest");
-    writeShim(
-      second,
-      "recognizer-scan-a",
-      manifestFor("scanner", "a", { version: "2.0.0" }),
-    );
 
     const found = discoverPlugins(io);
 
@@ -138,16 +133,6 @@ describe("discoverPlugins", () => {
     );
 
     expect(discoverPlugins(io).plugins[0]?.judgement).toBe("unsupported");
-  });
-
-  it("skips a PATH directory that does not exist", () => {
-    const { first } = setup();
-
-    writeShim(first, "recognizer-scan-a", manifestFor("scanner", "a"));
-
-    const io = ioWithPath(["/no/such/directory", first]);
-
-    expect(discoverPlugins(io).plugins).toHaveLength(1);
   });
 });
 

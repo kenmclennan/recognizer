@@ -455,6 +455,22 @@ function installSensor(
   });
 }
 
+function registerMachineWide(world: ScanWorld, name: string): void {
+  const command = [`recognizer-sense-${name}`];
+
+  world.fakes.pluginRegistrations.place(
+    "user",
+    registrationFileName("sensor", name),
+    serializeRegistration({
+      kind: "sensor",
+      name,
+      command,
+      manifest: [...command, "manifest"],
+    }),
+    1,
+  );
+}
+
 function reportOf(world: ScanWorld, name: string): SensorReport {
   const found = state(world).reports.find((one) => one.name === name);
 
@@ -510,12 +526,14 @@ Given(
       manifest: manifestCommand(name),
     }));
     installSensor(this, "margin", false);
+    registerMachineWide(this, "margin");
   },
 );
 
 Given("the repository registers no sensor", function (this: ScanWorld) {
   this.fakes.repositoryChecks.registered = [];
   installSensor(this, "margin", false);
+  registerMachineWide(this, "margin");
 });
 
 When(
