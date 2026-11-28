@@ -103,7 +103,7 @@ async function running(
       event({ event: "start", total: 2, unit: "functions" }),
       event({ event: "progress", done: 1, total: 2, unit: "functions" }),
     ]) {
-      call.stderr(line);
+      call.stderr(`${line}\n`);
     }
 
     await Promise.race([script.gate?.wait(), call.whenKilled()]);
@@ -115,7 +115,7 @@ async function running(
     for (const line of script.after ?? [
       event({ event: "progress", done: 2, total: 2, unit: "functions" }),
     ]) {
-      call.stderr(line);
+      call.stderr(`${line}\n`);
     }
 
     if (script.fails) {

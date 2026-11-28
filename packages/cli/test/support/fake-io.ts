@@ -2,7 +2,11 @@ import { registrationFileName, serializeRegistration } from "@recognizer/core";
 import type { Io, Running, RunOptions } from "../../src/cli.js";
 import { StopScope } from "../../src/stop-scope.js";
 import { FakeFiles } from "./io/files.js";
-import { FakeProcesses, type Program } from "./io/processes.js";
+import {
+  FakeProcesses,
+  type Program,
+  type SocketResponder,
+} from "./io/processes.js";
 import { FakeTimers } from "./io/timers.js";
 
 export const FAKE_BIN = "/fake-bin";
@@ -104,6 +108,8 @@ export class FakeIo implements Io {
     this.processes.launch(command, args);
   request: Io["request"] = (socket, text) =>
     this.processes.request(socket, text);
+  listen = (socket: string, respond: SocketResponder) =>
+    this.processes.listen(socket, respond);
 
   now = () => this.timers.now();
   awake = () => this.timers.awake();
