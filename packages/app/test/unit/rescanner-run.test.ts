@@ -202,6 +202,107 @@ const loadsReach = (root: Root, count: number) => () =>
   baselines(root).length >= count ? true : undefined;
 
 describe("createRescanner", () => {
+  it("posts exactly Scan started and Scan complete, and no error, when a scan ends within one tick", async () => {
+    const { root, opened, host } = await begin({ alpha: {} });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await reaches(root, postedText(root, /^Scan complete/));
+    await root.service.signal(500);
+
+    expect(root.view.tray.posted.map((one) => one.input)).toEqual([
+      { kind: "info", text: "Scan started - Alpha" },
+      { kind: "done", text: expect.stringMatching(/^Scan complete/) },
+    ]);
+  });
+
+  for (const held of [false, true]) {
+    it(`posts one Scan failed and no adoption error when a failing scan ends within one tick${held ? " while the finished scan is being adopted" : ""}`, async () => {
+      const adopting = new Gate();
+      const { programs } = sensorsOf({ alpha: {} });
+      const { root, opened, host } = await begin(
+        { alpha: {} },
+        {
+          ...(held ? { holds: { adopt_scan: adopting } } : {}),
+          override: {
+            "recognizer-sense-alpha": failingWith(
+              programs["recognizer-sense-alpha"] as Program,
+              "no coverage",
+            ),
+          },
+        },
+      );
+
+      if (held) {
+        adopting.hold();
+      }
+
+      host.run(null);
+
+      if (held) {
+        await reaches(root, () =>
+          Object.keys(host.runState().failures).length === 1 ? true : undefined,
+        );
+        adopting.open();
+      }
+
+      await settledRun(root, opened);
+      await reaches(root, postedText(root, /^Scan failed/));
+      await root.service.signal(500);
+
+      const texts = root.view.tray.posted.map((one) => one.input.text);
+
+      expect(texts.filter((one) => /^Scan failed/.test(one))).toEqual([
+        "Scan failed - alpha: no coverage",
+      ]);
+      expect(
+        texts.filter((one) => /no scan is waiting|exited non-zero/.test(one)),
+      ).toEqual([]);
+    });
+  }
+
+  it("keeps every sensor's last entry and posts the end message when the run ends within one tick", async () => {
+    const { root, opened, host } = await begin({
+      alpha: {},
+      beta: { fails: true },
+    });
+
+    host.run(null);
+    await settledRun(root, opened);
+    await reaches(root, () =>
+      Object.keys(host.runState().ranAt).length === 2 ? true : undefined,
+    );
+
+    expect(Object.keys(host.runState().ranAt)).toEqual(["alpha", "beta"]);
+    expect(Object.keys(host.runState().failures)).toEqual(["beta"]);
+    expect(host.runState().running).toEqual([]);
+    expect(
+      root.view.tray.posted.some((one) =>
+        /^Scan (complete|failed)/.test(one.input.text),
+      ),
+    ).toBe(true);
+  });
+
+  it("posts the end message and keeps the failure when the run record lands while the app is still adopting the finished scan", async () => {
+    const adopting = new Gate();
+    const { root, host } = await begin(
+      { alpha: {}, beta: { fails: true } },
+      { holds: { adopt_scan: adopting } },
+    );
+
+    adopting.hold();
+    host.run(null);
+
+    await reaches(root, () =>
+      Object.keys(host.runState().failures).length === 1 ? true : undefined,
+    );
+    adopting.open();
+    await reaches(root, postedText(root, /^Scan (complete|failed)/));
+
+    expect(Object.keys(host.runState().ranAt)).toEqual(["alpha", "beta"]);
+    expect(host.runState().running).toEqual([]);
+  });
+
   it("shows only the started sensor as running, the rest waiting, and holds a failure until the sensor next finishes ok", async () => {
     const alpha = gated();
     const beta = gated();
