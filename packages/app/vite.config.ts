@@ -16,6 +16,7 @@ const endToEndService = [
 const endToEnd = [
   "test/end-to-end/**/*.test.ts",
   "test/unit/*-look.test.ts",
+  "test/unit/scan-panel-look-root-*.test.ts",
   "test/look-root.test.ts",
 ];
 
