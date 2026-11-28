@@ -20,6 +20,7 @@ export type Recording = {
   batches?: number[];
   answers: Record<string, unknown>;
   marks?: Record<string, number>;
+  commandMarks?: Record<string, number>;
   hostEvents?: { event: string; payload: unknown }[];
 };
 
@@ -87,9 +88,14 @@ export function answerFor(
   args: Record<string, unknown> | undefined,
   upTo?: number,
   call?: number,
+  commandsUpTo?: number,
 ): unknown {
   const key = commandKey(command, args);
-  const matches = recording.commands.filter(
+  const asked =
+    commandsUpTo === undefined
+      ? recording.commands
+      : recording.commands.slice(0, commandsUpTo);
+  const matches = asked.filter(
     (one) =>
       commandKey(one.command, one.args) === key &&
       (upTo === undefined || (one.at ?? 0) <= upTo),
@@ -104,7 +110,7 @@ export function answerFor(
   }
 
   if (command === "core_call" && args?.op === "scan.plan") {
-    const planned = recording.commands.filter(
+    const planned = asked.filter(
       (one) =>
         one.command === "core_call" &&
         one.args.op === "scan.plan" &&

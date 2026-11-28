@@ -260,41 +260,48 @@ export async function lookRoot(
     ),
   };
 
-  commands.push({
-    command: "core_call",
-    args: { op: "scan.plan", args: planArgs },
-    reply: JSON.parse(
-      JSON.stringify(await root.service.call("scan.plan", planArgs)),
-    ),
-    at: root.lines.filter(isEvent).length,
-  });
-
-  for (const variant of scenario.plans ?? []) {
-    const asked = {
-      ...planArgs,
-      ...(variant.mode === undefined ? {} : { mode: variant.mode }),
-      ticks: { ...planArgs.ticks, ...variant.ticks },
-      ...(variant.scope === undefined ? {} : { scope: variant.scope }),
-      ...(variant.changed === undefined ? {} : { changed: variant.changed }),
-    };
-
+  const recordPlans = async () => {
     commands.push({
       command: "core_call",
-      args: { op: "scan.plan", args: asked },
+      args: { op: "scan.plan", args: planArgs },
       reply: JSON.parse(
-        JSON.stringify(await root.service.call("scan.plan", asked)),
+        JSON.stringify(await root.service.call("scan.plan", planArgs)),
       ),
       at: root.lines.filter(isEvent).length,
     });
-  }
+
+    for (const variant of scenario.plans ?? []) {
+      const asked = {
+        ...planArgs,
+        ...(variant.mode === undefined ? {} : { mode: variant.mode }),
+        ticks: { ...planArgs.ticks, ...variant.ticks },
+        ...(variant.scope === undefined ? {} : { scope: variant.scope }),
+        ...(variant.changed === undefined ? {} : { changed: variant.changed }),
+      };
+
+      commands.push({
+        command: "core_call",
+        args: { op: "scan.plan", args: asked },
+        reply: JSON.parse(
+          JSON.stringify(await root.service.call("scan.plan", asked)),
+        ),
+        at: root.lines.filter(isEvent).length,
+      });
+    }
+  };
+
+  await recordPlans();
 
   const marks: Record<string, number> = {};
+  const commandMarks: Record<string, number> = {};
 
   for (const stage of scenario.stages ?? []) {
     await stage.run(root);
     await root.service.signal(50);
     await recordResponsibilities();
+    await recordPlans();
     marks[stage.name] = root.lines.filter(isEvent).length;
+    commandMarks[stage.name] = commands.length;
   }
 
   const produced = root.view.loaded() as Loaded;
@@ -316,6 +323,7 @@ export async function lookRoot(
     batches: [...root.batches],
     answers: scenario.answers ?? {},
     marks,
+    commandMarks,
     hostEvents: scenario.hostEvents ?? [],
     produced,
   };
