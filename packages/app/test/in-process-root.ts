@@ -29,6 +29,7 @@ export type InProcessRootOptions = {
   origin?: { branch: string; commit: string };
   failing?: string[];
   rejects?: Record<string, string>;
+  replies?: Record<string, unknown>;
   holds?: Record<string, Gate>;
   ticks?: Record<string, unknown>;
   describing?: {
@@ -239,6 +240,12 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
 
         if (rejected !== undefined) {
           throw rejected;
+        }
+
+        const replied = options.replies?.[String(args.op)];
+
+        if (replied !== undefined) {
+          return replied;
         }
 
         const heldOp = options.holds?.[String(args.op)];

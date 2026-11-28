@@ -4,9 +4,11 @@ import type { ScanTicks } from "../../src/scan-panel-model";
 import {
   type CoreOutcome,
   type CoreStreamItem,
+  CoreUnavailable,
   createScanSource,
   outcomeResult,
   unavailableResult,
+  unavailableText,
 } from "../../src/scan-source";
 import { plannedRun } from "../fixtures";
 
@@ -390,5 +392,24 @@ describe("scan source", () => {
 
     expect(seenByOne).toEqual([]);
     expect(seenByTwo).toEqual([{ kind: "run", run }]);
+  });
+
+  it("an unavailable reply's error message is readable text for every kind", () => {
+    const gaps = new CoreUnavailable({ kind: "gaps", gaps: [GAP] });
+    const several = new CoreUnavailable({
+      kind: "gaps",
+      gaps: [GAP, { id: "mut", line: "mut needs a runner", needs: ["runner"] }],
+    });
+
+    expect(gaps.message).toBe("crap needs coverage");
+    expect(gaps.message).not.toContain("{");
+    expect(several.message).toBe("crap needs coverage; mut needs a runner");
+    expect(
+      unavailableText({ kind: "missing", hint: "install recognizer" }),
+    ).toBe("install recognizer");
+    expect(unavailableText({ kind: "refused", reason: "no" })).toBe("no");
+    expect(
+      unavailableText({ kind: "exited", status: "exit 1", stderr: "oops" }),
+    ).toBe("exit 1\noops");
   });
 });
