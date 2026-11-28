@@ -46,6 +46,27 @@ describe("parseSuiteSelection", () => {
     );
   });
 
+  it("names the unreadable sensor, not a sensor that runs no tests, first", () => {
+    const mixed = [
+      {
+        name: "crap",
+        runsTests: false,
+        unreadable: "the crap program is not installed",
+      },
+      { name: "duplication", runsTests: false },
+    ];
+
+    expect(() =>
+      parseSuiteSelection(
+        '{"crap":["unit"],"duplication":["unit"]}',
+        configured,
+        mixed,
+      ),
+    ).toThrow(
+      "--suites names crap, which cannot be read: the crap program is not installed",
+    );
+  });
+
   it("lists every unknown suite then the configured ones", () => {
     try {
       parseSuiteSelection('{"crap":["a","unit","b"]}', configured, sensors);

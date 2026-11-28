@@ -3,7 +3,11 @@ import { InvalidRequest } from "../invalid-request.js";
 export function parseSuiteSelection(
   text: string,
   configured: readonly string[],
-  sensors: readonly { name: string; runsTests: boolean }[],
+  sensors: readonly {
+    name: string;
+    runsTests: boolean;
+    unreadable?: string;
+  }[],
 ): Record<string, string[]> {
   let parsed: unknown;
 
@@ -29,6 +33,12 @@ export function parseSuiteSelection(
     if (sensor === undefined) {
       throw new InvalidRequest([
         `--suites names ${name}, which is not selected`,
+      ]);
+    }
+
+    if (sensor.unreadable !== undefined) {
+      throw new InvalidRequest([
+        `--suites names ${name}, which cannot be read: ${sensor.unreadable}`,
       ]);
     }
 
