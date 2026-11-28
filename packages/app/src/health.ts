@@ -1,4 +1,8 @@
-import type { SensorFindings, Violation } from "@recognizer/core";
+import {
+  findingsStanding,
+  type SensorFindings,
+  type Violation,
+} from "@recognizer/core";
 import {
   type FindingNote,
   findingsByModuleFrom,
@@ -101,7 +105,7 @@ export function computeHealth(
     disc: (id) => {
       const found = findingsOf(id);
 
-      return found.some((finding) => finding.severity === "violation")
+      return findingsStanding(found).level === "violation"
         ? "red"
         : found.length > 0
           ? "amber"
