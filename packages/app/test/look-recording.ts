@@ -17,6 +17,7 @@ export type Recording = {
   loaded: SerialisedLoaded;
   commands: RecordedCommand[];
   events: unknown[];
+  batches?: number[];
   answers: Record<string, unknown>;
   marks?: Record<string, number>;
   hostEvents?: { event: string; payload: unknown }[];

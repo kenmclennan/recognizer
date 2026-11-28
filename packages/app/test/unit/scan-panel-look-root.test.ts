@@ -354,10 +354,14 @@ const failingRun = (key: string, gate: Gate): LookStage[] => [
   },
 ];
 
-const failing = (name: string, diagnosis?: Diagnosis): Made => {
+const failing = (
+  name: string,
+  diagnosis?: Diagnosis,
+  reason?: string,
+): Made => {
   const gate = held();
   const wrap = (program: Program) =>
-    heldProgram(failingProgram(program, diagnosis), gate);
+    heldProgram(failingProgram(program, diagnosis, reason), gate);
 
   return {
     ticks: { ticked: [name] },
@@ -412,7 +416,7 @@ const SCENARIOS2 = (): Record<string, LookScenario> => ({
   mutationRed: made(failing("mutation", REASONS["mutation-tests-failing"])),
   mutationNoCov: made(failing("mutation", REASONS["mutation-no-coverage"])),
   plainFail: made(failing("crap")),
-  failed: made(failing("tally")),
+  failed: made(failing("tally", undefined, "broke")),
   moduleFail: made(moduleFailing()),
 });
 const pluginsOf = (root: Root): { name: string; state: string }[] => {
@@ -1661,6 +1665,29 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       disabled: false,
       spinner: 0,
     });
+  });
+
+  it("posts the failure and the scan start to the tray in order for a failed sensor", () => {
+    expect(f.sensorFail.messages.map((m: Facts) => m.text)).toEqual([
+      "tally failed: broke",
+      "Scan started - tally",
+    ]);
+    expect(f.sensorFail.reasonLines).toBe(0);
+  });
+
+  it("shows a failed sensor row from the message's Show and opens the log from its Open log", () => {
+    expect(f.sensorFail.footer.text).toBe("");
+    expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
+    expect(f.sensorFail.messages).toEqual([
+      { text: "tally failed: broke", actions: ["Show", "Open log"] },
+      { text: "Scan started - tally", actions: [] },
+    ]);
+    expect(f.sensorFail.hiddenBefore).toBe(true);
+    expect(f.sensorFail.panelOpen).toBe(true);
+    expect(f.sensorFail.dot).toBe(true);
+    expect(f.sensorFail.opened).toEqual([
+      expect.stringMatching(/^\.recognizer\/cache\/log\/.+-scan\.json$/),
+    ]);
   });
 
   it("leaves a failed sensor at failed with its age and a log link in red under a run card in the bad tone", () => {
