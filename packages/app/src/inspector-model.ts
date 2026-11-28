@@ -2,6 +2,7 @@ import {
   type Dependency,
   File,
   Folder,
+  findingsStanding,
   type Member,
   type Repository,
   type ViewProposedChange,
@@ -1231,7 +1232,7 @@ export function findingsTone(
 
   return {
     count: found.length,
-    tone: found.some((one) => one.severity === "violation") ? "red" : "amber",
+    tone: findingsStanding(found).level === "violation" ? "red" : "amber",
   };
 }
 
