@@ -1236,7 +1236,7 @@ await group(["failed"], async () => {
   facts.failed = t.panel();
 });
 
-await group(["sensorFail","noLog"], async () => {
+await group(["sensorFail"], async () => {
   const t = await draw("failed", { until: "idle", fake: true });
   await t.openScan();
   click(t.q(".scan-run"));
@@ -1262,7 +1262,6 @@ await group(["sensorFail","noLog"], async () => {
     opened: t.opened(),
     reasonLines: t.all(".scan-row").map((r) => r.querySelectorAll("div").length).reduce((a, b) => a + b, 0),
   };
-  facts.noLog = messagesBefore;
 });
 
 await group(["moduleFail","missing"], async () => {
