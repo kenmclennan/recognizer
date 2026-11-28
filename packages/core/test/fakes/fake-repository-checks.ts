@@ -3,7 +3,7 @@ import type {
   ConfigDocumentRead,
   InstalledPlugin,
   PolicyFacts,
-  PublishedValues,
+  PublishedKeyValues,
   RepositoryChecks,
 } from "../../src/index.js";
 
@@ -12,7 +12,7 @@ export class FakeRepositoryChecks implements RepositoryChecks {
   languageNames: string[] = [];
   configDocumentValue: ConfigDocumentRead = { kind: "absent" };
   schemaMessageList: string[] = [];
-  keyList: PublishedValues = [];
+  keyList: PublishedKeyValues = [];
   policyFactsValue: PolicyFacts = { kind: "absent" };
   scansStateValue: CachedScansState = { state: "missing" };
   scansReads = 0;
@@ -35,7 +35,7 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     return this.schemaMessageList;
   }
 
-  publishedKeys(): PublishedValues {
+  publishedKeys(): PublishedKeyValues {
     this.keyReads += 1;
 
     return this.keyList;

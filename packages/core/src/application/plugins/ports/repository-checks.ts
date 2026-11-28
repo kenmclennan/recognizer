@@ -1,5 +1,5 @@
 import type { InstalledPlugin } from "../../../domain/plugins/installed-plugin.js";
-import type { PublishedValues } from "../../configuration/inspect-config-document.js";
+import type { PublishedKeyValues } from "../../configuration/inspect-config-document.js";
 import type { PolicyRead } from "../../configuration/policy-reading.js";
 import type { CachedScansState } from "../../shared/cached-scans-state.js";
 
@@ -23,7 +23,7 @@ export interface RepositoryChecks {
   languages(root: string, scanners: readonly InstalledPlugin[]): string[];
   configDocument(root: string): ConfigDocumentRead;
   configSchemaMessages(document: unknown): string[];
-  publishedKeys(root: string): PublishedValues;
+  publishedKeys(root: string): PublishedKeyValues;
   policyFacts(root: string): PolicyFacts;
   scansState(root: string, languages: readonly string[]): CachedScansState;
   registeredSensors(

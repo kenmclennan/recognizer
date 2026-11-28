@@ -6,7 +6,7 @@ import {
   type InstalledPlugin,
   type PolicyFacts,
   type PolicyParse,
-  type PublishedValues,
+  type PublishedKeyValues,
   type RepositoryChecks,
 } from "@recognizer/core";
 import { parse } from "yaml";
@@ -104,7 +104,7 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
     return schemaMessages(document);
   }
 
-  publishedKeys(root: string): PublishedValues {
+  publishedKeys(root: string): PublishedKeyValues {
     return new KeyOwnersAdapter(this.io).schemas(root).schema.keys;
   }
 

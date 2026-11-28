@@ -63,6 +63,10 @@
           "exclusiveMaximum": { "type": "number" },
           "off": { "type": "boolean" },
           "retired": { "type": "string", "minLength": 1 },
+          "replaces": {
+            "type": "string",
+            "pattern": "^sensors\\.thresholds\\.[a-z_]+\\.[a-z_]+$"
+          },
           "description": { "type": "string", "minLength": 1 },
           "example": { "type": "string", "minLength": 1 }
         },

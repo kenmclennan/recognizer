@@ -36,6 +36,7 @@
       "maximum": 1,
       "off": true,
       "default": 0.6,
+      "replaces": "sensors.thresholds.coverage.below",
       "label": "Report coverage below",
       "unit": "0 to 1",
       "limit": {

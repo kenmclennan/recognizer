@@ -172,8 +172,10 @@ export function readConfigArea(
   for (const retired of retiredKeysIn(document)) {
     const key = retired.path.join(".");
     const migration = retired.tolerated
-      ? toleratedMigration(document, (command) =>
-          withRepository(target, command),
+      ? toleratedMigration(
+          document,
+          (command) => withRepository(target, command),
+          repository.publishedKeys(root),
         )
       : null;
 

@@ -383,8 +383,13 @@ describe("doctor: config", () => {
     }
   });
 
-  const migrationOf = (config: string) => {
-    const result = json(setup({ config }));
+  const migrationOf = (
+    config: string,
+    options: { onPath?: string[]; manifestsAnswer?: boolean } = {},
+  ) => {
+    const result = json(
+      setup({ config, onPath: ["recognizer-sense-crap"], ...options }),
+    );
     const problems = result.report.areas[0].problems;
 
     expect(problems).toHaveLength(1);
@@ -440,12 +445,41 @@ describe("doctor: config", () => {
     );
 
     expect(problem.line).toContain(
-      "a coverage finding is always a warning now",
+      'coverage.severity "violation" is dropped: no setting replaces it',
     );
-    expect(problem.line).toContain("coverage.above 2 is dropped");
+    expect(problem.line).toContain(
+      "coverage.above 2 is dropped: no setting replaces it",
+    );
     expect(problem.line).toContain("churn has no replacement and is dropped");
     expect(problem.fix.command).toBe(
       "recognizer config sensors.crap.coverage_limit 0.7 && recognizer config --unset sensors.thresholds",
+    );
+  });
+
+  it("reports a coverage below value the limit refuses with the reason the key gives", () => {
+    const problem = migrationOf(
+      "sensors:\n  thresholds:\n    coverage:\n      below: 5\n",
+    );
+
+    expect(problem.line).toContain(
+      "coverage.below 5 is dropped: 5 is above the maximum 1",
+    );
+    expect(problem.fix.command).toBe(
+      "recognizer config --unset sensors.thresholds",
+    );
+  });
+
+  it("drops a coverage threshold when no installed sensor publishes it", () => {
+    const problem = migrationOf(
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n",
+      { onPath: [], manifestsAnswer: false },
+    );
+
+    expect(problem.line).toContain(
+      "coverage has no replacement and is dropped",
+    );
+    expect(problem.fix.command).toBe(
+      "recognizer config --unset sensors.thresholds",
     );
   });
 

@@ -6,6 +6,7 @@ import {
   RETIRED_KEYS,
   type RetiredKey,
 } from "../../domain/configuration/retired-keys.js";
+import type { PublishedKeyValues } from "../../domain/configuration/published-keys.js";
 import type { PublishedValues } from "../../domain/configuration/survey-answer.js";
 import {
   type ThresholdsMigration,
@@ -19,7 +20,7 @@ export {
   withMovedDuplicationSensor,
   withoutFaultySensorSettings,
 } from "../../domain/configuration/sensor-setting-rules.js";
-export type { PublishedValues, ThresholdsMigration };
+export type { PublishedKeyValues, PublishedValues, ThresholdsMigration };
 
 export interface EmptySection {
   path: string[];
@@ -187,6 +188,7 @@ export function unpublishedValuesIn(
 export function toleratedMigration(
   document: unknown,
   prefix: (command: string) => string,
+  keys: PublishedKeyValues,
 ): ThresholdsMigration | null {
-  return thresholdsMigration(document, prefix);
+  return thresholdsMigration(document, prefix, keys);
 }

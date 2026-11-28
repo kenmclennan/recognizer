@@ -24,6 +24,9 @@ describe("the pinned sensors key schema", () => {
     expect(keys.get("sensors.mutation.timeout_factor")?.default).toBe(10);
     expect(keys.get("sensors.mutation.incremental")?.default).toBe(true);
     expect(keys.get("sensors.crap.coverage_limit")?.default).toBe(0.6);
+    expect(keys.get("sensors.crap.coverage_limit")?.replaces).toBe(
+      "sensors.thresholds.coverage.below",
+    );
     expect(keys.get("sensors.mutation.max_minutes")?.default_text).toBe(
       "no time budget: the run continues until it finishes",
     );
