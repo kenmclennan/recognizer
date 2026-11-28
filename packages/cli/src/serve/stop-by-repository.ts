@@ -45,6 +45,10 @@ export function stopMarkerProcess(
   }
 
   if (run.started_by === "app" || run.pgid === run.pid) {
+    if (!leadsOwnGroup(io, run)) {
+      return;
+    }
+
     signals.signal(run.pid, true, "SIGTERM");
     holdBackstop(io, repository, run, signals, backstopMs, backstops);
 
@@ -52,6 +56,16 @@ export function stopMarkerProcess(
   }
 
   signals.signal(run.pid, false, "SIGTERM");
+}
+
+function leadsOwnGroup(io: Io, run: ScanRunRecord): boolean {
+  const group = io.processGroup(run.pid);
+
+  if (group === null) {
+    return true;
+  }
+
+  return group === run.pid && group !== io.processGroup(io.pid());
 }
 
 function holdBackstop(
@@ -75,7 +89,10 @@ function holdBackstop(
     }
 
     if (waited >= backstopMs) {
-      signals.signal(run.pid, true, "SIGKILL");
+      if (leadsOwnGroup(io, run)) {
+        signals.signal(run.pid, true, "SIGKILL");
+      }
+
       release();
 
       return;

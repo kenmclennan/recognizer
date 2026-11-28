@@ -28,4 +28,45 @@ describe("the in-process serve root's stop signals", () => {
 
     await root.close();
   });
+
+  it("a_stop_by_repository_never_signals_a_marker_pid_that_sits_in_another_group", async () => {
+    const { root, repository } = typescriptScenario();
+    const runner = root.io.pid() + 1;
+
+    root.io.alive.add(runner);
+    root.io.groups.set(runner, root.io.pid() + 2);
+    plantMarkerIn(root.io.files, repository, {
+      pid: runner,
+      pgid: runner,
+      started_by: "app",
+      started_at: new Date().toISOString(),
+    });
+
+    await root.call("scan.stop", { repository, owner: "app" });
+
+    expect(SENT_SIGNALS).toEqual([]);
+
+    await root.close();
+  });
+
+  it("a_stop_by_repository_never_signals_the_group_the_service_itself_runs_in", async () => {
+    const { root, repository } = typescriptScenario();
+    const runner = root.io.pid() + 1;
+
+    root.io.alive.add(runner);
+    root.io.groups.set(runner, runner);
+    root.io.groups.set(root.io.pid(), runner);
+    plantMarkerIn(root.io.files, repository, {
+      pid: runner,
+      pgid: runner,
+      started_by: "app",
+      started_at: new Date().toISOString(),
+    });
+
+    await root.call("scan.stop", { repository, owner: "app" });
+
+    expect(SENT_SIGNALS).toEqual([]);
+
+    await root.close();
+  });
 });

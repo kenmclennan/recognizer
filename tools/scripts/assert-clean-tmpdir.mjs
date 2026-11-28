@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, readdirSync, statSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
+import { logForwardedSignal } from "./forwarded-signal-log.mjs";
 import { removeScratch } from "./service-scratch-teardown.mjs";
 
 const TOOL_OWNED = [/^node-compile-cache$/, /^uv-[0-9a-f]+\.lock$/];
@@ -69,6 +70,7 @@ function runChild(command, args, scratch) {
     const handlers = FORWARDED.map((name) => {
       const handler = () => {
         received ??= name;
+        logForwardedSignal(name, child.pid);
         signalGroup(child.pid, name);
         killTimer ??= setTimeout(
           () => signalGroup(child.pid, "SIGKILL"),

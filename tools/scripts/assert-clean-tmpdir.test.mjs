@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -176,5 +176,47 @@ console.log("ready " + process.env.TMPDIR + " " + g.pid);
 
     expect(existsSync(dead)).toBe(false);
     expect(existsSync(alive)).toBe(true);
+  });
+});
+
+describe("forwarded signal log", () => {
+  it(
+    "records the wrapper's pid, ppid and pgid in the snapshot folder when it forwards a signal",
+    async () => {
+      const snapshots = makeTempDir("ac-forward-log-");
+      const child = spawn(
+        process.execPath,
+        [wrapper, process.execPath, "-e", holder],
+        {
+          env: {
+            ...process.env,
+            TMPDIR: makeTempDir("ac-forward-tmp-"),
+            RECOGNIZER_SIGTERM_SNAPSHOT_DIR: snapshots,
+          },
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      );
+      const exited = new Promise((resolve) => child.on("close", resolve));
+
+      await new Promise((resolve) => child.stdout.once("data", resolve));
+      child.kill("SIGTERM");
+      await exited;
+
+      const record = readFileSync(
+        join(snapshots, `forwarded-${child.pid}-SIGTERM.txt`),
+        "utf8",
+      );
+
+      expect(record).toContain("wrapper forwarded SIGTERM");
+      expect(record).toContain(`wrapper pid ${child.pid} ppid ${process.pid}`);
+      expect(record).toMatch(/pgid \d+/);
+    },
+    scaledTimeout(30_000),
+  );
+
+  it("writes nothing when no snapshot folder is set", async () => {
+    const { logForwardedSignal } = await import("./forwarded-signal-log.mjs");
+
+    expect(() => logForwardedSignal("SIGTERM", 1, "")).not.toThrow();
   });
 });
