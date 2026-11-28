@@ -88,7 +88,7 @@ function pending(promise: Promise<void>): Promise<boolean> {
 }
 
 function ownerIo() {
-  return { ...nodeIo(), pid: () => 1 };
+  return { ...nodeIo(), pid: () => 1, processGroup: (pid: number) => pid };
 }
 
 describe("stop backstops", () => {

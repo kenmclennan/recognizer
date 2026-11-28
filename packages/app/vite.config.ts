@@ -76,7 +76,6 @@ export default defineConfig({
           setupFiles: [
             "../../tools/scripts/service-scratch-worker.mjs",
             "../../tools/scripts/vitest-sigterm-snapshot.mjs",
-            "./test/end-to-end/shared-service-close.setup.ts",
           ],
           include: endToEndService,
         },

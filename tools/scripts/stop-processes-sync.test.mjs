@@ -47,6 +47,28 @@ describe("stopProcessesSync", () => {
     expect(alive(child.pid)).toBe(false);
   });
 
+  it("never signals a process whose command is a vitest worker", async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        "setInterval(() => {}, 1000)",
+        "/r/node_modules/vitest/dist/workers/forks.js",
+      ],
+      { stdio: "ignore" },
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const clean = stopProcessesSync([child.pid], { graceMs: 200 });
+    const stillAlive = alive(child.pid);
+
+    child.kill("SIGKILL");
+
+    expect(clean).toBe(true);
+    expect(stillAlive).toBe(true);
+  });
+
   it("accepts a process that is already gone", () => {
     expect(stopProcessesSync([2 ** 22 - 1], { graceMs: 200 })).toBe(true);
   });

@@ -9,6 +9,18 @@ function alive(pid) {
   return state !== "" && !state.startsWith("Z");
 }
 
+function commandOf(pid) {
+  const listed = spawnSync("ps", ["-o", "command=", "-p", String(pid)], {
+    encoding: "utf8",
+  });
+
+  return typeof listed.stdout === "string" ? listed.stdout : "";
+}
+
+function isTestRunner(pid) {
+  return /node_modules\/(\.bin\/)?vitest/.test(commandOf(pid));
+}
+
 function signal(pids, name) {
   for (const pid of pids) {
     try {
@@ -22,9 +34,11 @@ function pause(milliseconds) {
 }
 
 export function stopProcessesSync(
-  pids,
+  candidates,
   { graceMs = 15_000, stepMs = 50 } = {},
 ) {
+  const pids = candidates.filter((pid) => !isTestRunner(pid));
+
   signal(pids, "SIGTERM");
 
   const limit = Date.now() + graceMs;
