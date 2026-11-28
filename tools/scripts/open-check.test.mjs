@@ -1,13 +1,15 @@
 import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readlinkSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -236,9 +238,17 @@ describe("windowAnswer", () => {
   });
 });
 
+function shortSocketFolder() {
+  const probe = join(tmpdir(), "oc-test-XXXXXX", "a.sock");
+  const base = Buffer.byteLength(probe) <= MAX_SOCKET_BYTES ? tmpdir() : "/tmp";
+
+  return mkdtempSync(join(base, "oc-test-"));
+}
+
 describe("askSocket", () => {
   it("returns a real socket's answers in order", async () => {
-    const path = join(makeTempDir("oc-test-"), "a.sock");
+    const folder = shortSocketFolder();
+    const path = join(folder, "a.sock");
 
     expect(Buffer.byteLength(path)).toBeLessThanOrEqual(MAX_SOCKET_BYTES);
 
@@ -272,6 +282,7 @@ describe("askSocket", () => {
       expect(requests[0]).toBe('{"v":1,"command":"window"}\n');
     } finally {
       await new Promise((closed) => server.close(closed));
+      rmSync(folder, { recursive: true, force: true });
     }
   });
 });
