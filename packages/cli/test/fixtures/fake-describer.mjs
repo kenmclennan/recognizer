@@ -37,7 +37,7 @@ const MANIFEST = {
     opus: { input: 4, output: 20 },
     sonnet: { input: 2, output: 10 },
   },
-  prompt_version: "1",
+  prompt_version: process.env.FAKE_PROMPT_VERSION ?? "1",
 };
 
 if (process.argv[2] === "manifest") {
@@ -46,9 +46,12 @@ if (process.argv[2] === "manifest") {
 }
 
 const args = process.argv.slice(process.argv[2] === "run" ? 3 : 2);
-const repository = args[0];
+const shimmed = process.env.FAKE_REPOSITORY !== undefined;
+const repository = shimmed ? process.env.FAKE_REPOSITORY : args[0];
 const request = args[args.length - 1];
-const flags = args.slice(1, -1);
+const flags = shimmed
+  ? JSON.parse(process.env.FAKE_FLAGS ?? "[]")
+  : args.slice(1, -1);
 const { module } = JSON.parse(readFileSync(request, "utf8"));
 
 function flagged(name) {

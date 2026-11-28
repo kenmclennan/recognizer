@@ -1,4 +1,3 @@
-import type { ConfigRepository } from "../../domain/config-repository.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import type { Repository } from "../../domain/repository.js";
@@ -7,10 +6,11 @@ import type { Clock } from "../shared/ports/clock.js";
 import type { Git } from "../shared/ports/git.js";
 import type { Analysis } from "./ports/analysis.js";
 import { measuredInputs } from "./sense-structure.js";
+import type { SensorsInEffect } from "./sensors-in-effect.js";
 
 export interface ReportPorts {
   analysis: Analysis;
-  config: ConfigRepository;
+  catalog: SensorsInEffect;
   findings: FindingsRepository;
   git: Git;
   clock: Clock;
@@ -44,7 +44,10 @@ function requireName(
     ]);
   }
 
-  const taken = ["structure", ...ports.config.sensorNames(root)];
+  const taken = [
+    "structure",
+    ...ports.catalog.sensorsInEffect().map(({ name }) => name),
+  ];
 
   if (taken.includes(name)) {
     throw new InvalidRequest([

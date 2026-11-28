@@ -21,12 +21,12 @@ import { COMMANDS } from "../src/commands.js";
 import { DESCRIBE_FLAGS } from "../src/describe-command.js";
 import { fullHelp } from "../src/help.js";
 import { validateRunRecord } from "../src/log-document.js";
+import { installFakeDescriber } from "./fake-describer-shim.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
 import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 import { scannerManifestText } from "./scan-helpers.js";
 
-const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
 const ORDER = "shop/domain/order.py";
 const STORE = "shop/ports/store.py";
 const PLACE = "shop/application/place.py";
@@ -98,13 +98,25 @@ beforeEach(() => {
   useDescribing("sonnet", 4);
 });
 
-function configure(root: string, version = "v1", ...flags: string[]): void {
-  const command = ["node", FAKE, "run", "{repository}", ...flags, "{request}"];
+const shimDirectories = new Map<string, string>();
 
-  writeFileSync(
-    join(root, ".recognizer/config.yaml"),
-    `describer:\n  command: ${JSON.stringify(command)}\n  version: ${JSON.stringify(version)}\n`,
+function configure(root: string, version = "v1", ...flags: string[]): void {
+  const { directory } = installFakeDescriber(
+    root,
+    version,
+    flags,
+    shimDirectories.get(root),
   );
+
+  shimDirectories.set(root, directory);
+}
+
+function describerProgram(root: string): string {
+  return join(shimDirectories.get(root) as string, "recognizer-describe-fake");
+}
+
+function describerCommand(root: string): string[] {
+  return [describerProgram(root), "run", "--model", "{model}", "{request}"];
 }
 
 function ready(version = "v1", ...flags: string[]): string {
@@ -255,7 +267,7 @@ describe("describe status", () => {
     const root = ready();
 
     await exec(root, "describe");
-    configure(root, "v1", "--fail", "nothing");
+    installFakeDescriber(root, "v1", ["--fail", "nothing"]);
 
     const { parsed } = await statuses(root);
 
@@ -510,7 +522,6 @@ describe("describe failures", () => {
     const old = responsibilities(root).modules[ORDER];
 
     configure(root, "v1", "--fail", ORDER);
-    configure(root, "v1", "--fail", ORDER);
 
     const result = await exec(root, "describe", "--all", "--json");
     const file = responsibilities(root);
@@ -519,23 +530,6 @@ describe("describe failures", () => {
     expect(JSON.parse(result.out).described).toHaveLength(14);
     expect(Object.keys(file.modules)).toHaveLength(15);
     expect(file.modules[ORDER]).toEqual(old);
-  });
-
-  it("reports a program that does not exist as failed", async () => {
-    const root = repository();
-
-    writeFileSync(
-      join(root, ".recognizer/config.yaml"),
-      'describer:\n  command: ["/no/such/describer", "{request}"]\n  version: "v1"\n',
-    );
-
-    const result = await exec(root, "describe", ORDER, "--json");
-
-    expect(result.code).toBe(1);
-    expect(JSON.parse(result.out).failed[0].module).toBe(ORDER);
-    expect(existsSync(join(root, ".recognizer/responsibilities.json"))).toBe(
-      false,
-    );
   });
 
   it("reports an unreadable source as failed", async () => {
@@ -631,13 +625,7 @@ describe("describe write path", () => {
       "version",
     ]);
     expect(text).toBe(`${JSON.stringify(file, null, 2)}\n`);
-    expect(file.modules[ORDER].describer).toEqual([
-      "node",
-      FAKE,
-      "run",
-      "{repository}",
-      "{request}",
-    ]);
+    expect(file.modules[ORDER].describer).toEqual(describerCommand(root));
   });
 
   it("removes the temp directory it made", async () => {
@@ -762,7 +750,7 @@ function installedManifest() {
   };
 }
 
-function installDescriberPlugin(): void {
+function installDescriberPlugin(): string {
   const dir = makeTempDir("recognizer-bin-");
 
   binDirs.push(dir);
@@ -784,6 +772,8 @@ function installDescriberPlugin(): void {
   registerShim(script);
   describerDirs.push(dir);
   pointAtShims(isolatedPath(...describerDirs), ...describerDirs);
+
+  return script;
 }
 
 beforeEach(() => {
@@ -810,30 +800,16 @@ describe("describer in effect", () => {
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out)).toEqual({
-      command: ["node", FAKE, "run", "{repository}", "{request}"],
+      command: describerCommand(root),
       version: "v7",
     });
   });
 
-  it("refuses --describer when none is configured", async () => {
-    installDescriberPlugin();
-
-    const result = await exec(
-      repository(),
-      "describe",
-      "--describer",
-      "--json",
-    );
-
-    expect(result.code).toBe(2);
-    expect(result.err).toBe(`${noneRegistered()}\n`);
-    expect(result.out).toBe("");
-  });
-
   it("prints one plain line without --json", async () => {
-    const result = await exec(ready("v7"), "describe", "--describer");
+    const root = ready("v7");
+    const result = await exec(root, "describe", "--describer");
 
-    expect(result.out).toBe(`node ${FAKE} run {repository} {request}  v7\n`);
+    expect(result.out).toBe(`${describerCommand(root).join(" ")}  v7\n`);
   });
 
   it("exits 2 naming the missing describer when neither exists", async () => {
@@ -847,7 +823,7 @@ describe("describer in effect", () => {
     expect(result.err).toBe(`${noneRegistered()}\n`);
   });
 
-  it("prefers a configured describer over an installed fallback", async () => {
+  it("prefers the newest registered describer", async () => {
     installDescriberPlugin();
 
     const root = ready("v3");
@@ -855,27 +831,23 @@ describe("describer in effect", () => {
     expect(
       JSON.parse((await exec(root, "describe", "--describer", "--json")).out)
         .command[0],
-    ).toBe("node");
+    ).toBe(describerProgram(root));
     expect((await exec(root, "describe", "--all")).code).toBe(0);
-    expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
+    expect(responsibilities(root).modules[ORDER].describer[0]).toBe(
+      describerProgram(root),
+    );
   });
 
-  it("describes with the fallback and records its command and version", async () => {
-    installDescriberPlugin();
-
+  it("describes with the registered describer and records its command and version", async () => {
+    const script = installDescriberPlugin();
     const root = repository();
-
-    writeFileSync(
-      join(root, ".recognizer/config.yaml"),
-      `describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: ${INSTALLED_VERSION}\n`,
-    );
 
     expect((await exec(root, "describe", "--all")).code).toBe(0);
 
     const entry = responsibilities(root).modules[ORDER];
 
     expect(entry.describer).toEqual([
-      "recognizer-describe-claude",
+      script,
       "run",
       "--model",
       "{model}",
@@ -891,8 +863,6 @@ describe("unregistered describer refusal", () => {
   const LINE = `${noneRegistered()}\n`;
 
   it("refuses before any model call when no describer is registered", async () => {
-    installDescriberPlugin();
-
     const root = repository();
     const result = await exec(root, "describe", "--all");
 
@@ -902,19 +872,17 @@ describe("unregistered describer refusal", () => {
   });
 
   it("refuses nothing when a describer is registered", async () => {
-    installDescriberPlugin();
-
     const root = ready("v3");
     const result = await exec(root, "describe", "--all");
 
     expect(result.code).toBe(0);
-    expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
+    expect(responsibilities(root).modules[ORDER].describer[0]).toBe(
+      describerProgram(root),
+    );
     expect(result.err).not.toContain("not registered");
   });
 
   it("refuses nothing for --describer and --check", async () => {
-    installDescriberPlugin();
-
     const root = ready("v3");
 
     expect((await exec(root, "describe", "--describer")).code).toBe(0);
@@ -926,19 +894,19 @@ describe("unregistered describer refusal", () => {
 });
 
 describe("describe config", () => {
-  it("exits 2 with a config message when there is no describer", async () => {
+  it("exits 2 naming the missing describer when there is no describer", async () => {
     const root = repository();
 
     withoutDescriberPlugin();
 
-    expect((await exec(root, "describe")).err).toContain("config");
+    expect((await exec(root, "describe")).err).toContain(noneRegistered());
 
     writeFileSync(join(root, ".recognizer/config.yaml"), "{}\n");
 
     const result = await exec(root, "describe");
 
     expect(result.code).toBe(2);
-    expect(result.err).toContain("config");
+    expect(result.err).toContain(noneRegistered());
   });
 
   it.each([
@@ -1030,12 +998,16 @@ describe("no describing as a side effect", () => {
     const io: Io = {
       ...out.io,
       run: (command, args) => {
-        programs.push(command);
+        if (args[0] === "run") {
+          programs.push(command);
+        }
 
         return out.io.run(command, args);
       },
       runAsync: (command, args) => {
-        programs.push(command);
+        if (args[0] === "run") {
+          programs.push(command);
+        }
 
         return out.io.runAsync(command, args);
       },
@@ -1043,7 +1015,7 @@ describe("no describing as a side effect", () => {
 
     await run(["describe", "--check", "--repository", root], io);
 
-    expect(programs).not.toContain("node");
+    expect(programs).not.toContain(describerProgram(root));
     expect(
       (await exec(root, "scan", root)).code === 0 || existsSync(root),
     ).toBe(true);
@@ -1184,7 +1156,10 @@ describe("describe leaves a run record", () => {
       reason: `cannot describe ${ORDER}`,
       stderr: `cannot describe ${ORDER}`,
     });
-    expect(saved.entries[0].command.slice(0, 2)).toEqual(["node", FAKE]);
+    expect(saved.entries[0].command.slice(0, 2)).toEqual([
+      describerProgram(root),
+      "run",
+    ]);
   });
 
   it("leaves a running record with the finished entries when killed between children", async () => {
@@ -1194,11 +1169,11 @@ describe("describe leaves a run record", () => {
     const killing: Io = {
       ...out.io,
       runAsync: (command, args, options) => {
-        if (command === "node") {
+        if (command === describerProgram(root)) {
           children += 1;
         }
 
-        if (command === "node" && children === 2) {
+        if (command === describerProgram(root) && children === 2) {
           throw new Error("killed");
         }
 
@@ -1234,21 +1209,6 @@ describe("describe leaves a run record", () => {
     expect(listed.out).not.toContain("stopped");
     expect(printed.out).not.toContain("no finish recorded");
     expect(printed.out).toContain(ORDER);
-  });
-
-  it("records an unreadable program as a failed entry with no status", async () => {
-    const root = repository();
-
-    writeFileSync(
-      join(root, ".recognizer/config.yaml"),
-      'describer:\n  command: ["/no/such/describer", "{request}"]\n  version: "v1"\n',
-    );
-    await exec(root, "describe", ORDER);
-
-    expect(recorded(root)[0].entries[0]).toMatchObject({
-      status: null,
-      outcome: "failed",
-    });
   });
 
   it("records an unreadable file with an empty command", async () => {

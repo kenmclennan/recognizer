@@ -8,6 +8,8 @@ import {
   readManifestCommand,
   readRegisteredSensors,
   type SensorCatalog,
+  type SensorInEffect,
+  sensorsInEffect,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { manifestPorts } from "../../manifest-ports.js";
@@ -20,6 +22,10 @@ export class SensorCatalogAdapter implements SensorCatalog {
 
   installedNames(): string[] {
     return installedSensorNames(manifestPorts(this.io));
+  }
+
+  sensorsInEffect(): SensorInEffect[] {
+    return sensorsInEffect(manifestPorts(this.io));
   }
 
   unreadableFolders(): string[] {

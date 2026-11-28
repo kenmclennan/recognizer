@@ -32,7 +32,6 @@ const CODES = [
   "describer-gap",
   "unregistered-plugin",
   "unregistered-program",
-  "sensor-manifest-missing",
 ];
 
 const RETIRED_NAMES = [

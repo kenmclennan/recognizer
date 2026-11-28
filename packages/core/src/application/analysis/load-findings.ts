@@ -16,9 +16,11 @@ import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
 import { senseStructure } from "./sense-structure.js";
+import type { SensorsInEffect } from "./sensors-in-effect.js";
 
 export interface LoadFindingsPorts {
-  config: Pick<ConfigRepository, "structureSettings" | "sensorNames">;
+  config: Pick<ConfigRepository, "structureSettings">;
+  catalog: SensorsInEffect;
   findings: Pick<FindingsRepository, "readStructure" | "save" | "readAll">;
   policy: Pick<PolicyRepository, "rules">;
   source: SourceFiles;
@@ -86,7 +88,7 @@ export function loadFindings(
 
   for (const outcome of gatherFindingsFiles(ports, say, root, repository, {
     skip: ["structure"],
-    allowed: ports.config.sensorNames(root),
+    allowed: ports.catalog.sensorsInEffect().map(({ name }) => name),
   })) {
     if (outcome.status === "read") {
       documents.push(outcome.document);

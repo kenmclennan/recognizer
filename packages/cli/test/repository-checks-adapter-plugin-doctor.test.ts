@@ -7,6 +7,7 @@ import {
   type PluginSpec,
   type PolicyParse,
   type PublishedValues,
+  type RegisteredPlugin,
   type RepositoryChecks,
   readConfigArea,
   readPolicyArea,
@@ -24,7 +25,7 @@ import { documentValidators } from "../src/manifest-ports.js";
 import { manifestFor } from "./plugin-path.js";
 
 type DoctorFacts = Context & {
-  testsUnrun: { name: string; display?: string }[];
+  registered: RegisteredPlugin[];
   unregisteredPrograms: UnregisteredProgram[];
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
@@ -70,7 +71,7 @@ function repositoryChecksOf(
       };
     },
     scansState: () => given.scans(),
-    registeredSensors: () => [],
+    sensorSettings: () => ({}),
     suites: () => undefined,
   };
 }
@@ -91,7 +92,21 @@ function parsedPolicy(text: string): PolicyParse {
 
 function buildReport(given: DoctorFacts) {
   const repository = repositoryChecksOf(given, []);
-  const config = readConfigArea(repository, given.repository, given.named);
+  const config = readConfigArea(
+    repository,
+    {
+      entries: () => ({
+        plugins: given.registered,
+        shadowed: [],
+        unreadable: [],
+        describer: null,
+      }),
+      register: () => ({ status: "refused", reason: "fake" }),
+      unregister: () => ({ status: "not-registered" }),
+    },
+    given.repository,
+    given.named,
+  );
 
   return build({
     repository: given.repository,
@@ -106,7 +121,6 @@ function buildReport(given: DoctorFacts) {
     languages: given.languages,
     scanners: given.scanners,
     plugins: given.plugins,
-    testsUnrun: given.testsUnrun,
     unregisteredPrograms: given.unregisteredPrograms,
     protocol: documentValidators.facts,
   });
@@ -126,18 +140,23 @@ const scannerProblems = (
     documentValidators.facts,
   );
 
-const CONFIG =
-  "sensors:\n  mine:\n    command: [recognizer-sense-mine, run]\n    manifest: [recognizer-sense-mine, manifest]\n";
+const MINE: RegisteredPlugin = {
+  kind: "sensor",
+  name: "mine",
+  command: ["recognizer-sense-mine"],
+  manifest: ["recognizer-sense-mine", "manifest"],
+  source: "user",
+};
 
 function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
   return {
     repository: "/repo",
     named: false,
-    configText: CONFIG,
+    configText: null,
     policyText: null,
     languages: [],
     scans: () => ({ state: "missing" }),
-    testsUnrun: [],
+    registered: [MINE],
     unregisteredPrograms: [],
     scanners: [
       {
@@ -205,7 +224,7 @@ describe("doctor: a program installed on PATH but not registered", () => {
   it("is a warning in its kind's area with its install line, so the report is ok", () => {
     const report = buildReport(
       facts({
-        configText: null,
+        registered: [],
         plugins: () => [],
         unregisteredPrograms: [unregistered],
       }),

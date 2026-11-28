@@ -117,6 +117,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
   const findings = new FakeFindingsRepository();
   const process = new FakeProcess();
   const setupFiles = new FakeSetupFiles();
+  const pluginRegistrations = new FakePluginRegistrations();
 
   sensors.findings = findings;
 
@@ -127,7 +128,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     scanners: new FakeScanners(structure, log),
     analysis: new FakeAnalysis(),
     sensors,
-    catalog: new FakeSensorCatalog(sensors),
+    catalog: new FakeSensorCatalog(sensors, pluginRegistrations),
     files: new FakeSelectionFiles(),
     describer: new FakeDescriber(),
     responsibilities: new FakeResponsibilitiesRepository(),
@@ -159,7 +160,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     documentValidators: new FakeDocumentValidators(),
     checkSandbox: new FakeCheckSandbox(),
     pluginRegistry: new FakePluginRegistry(),
-    pluginRegistrations: new FakePluginRegistrations(),
+    pluginRegistrations,
     pluginTemplates: new FakePluginTemplates(),
     repositoryChecks: new FakeRepositoryChecks(),
     scratch: new FakeScratch(),

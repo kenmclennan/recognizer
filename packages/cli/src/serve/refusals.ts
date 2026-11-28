@@ -1,10 +1,9 @@
 import { join } from "node:path";
-import type { Diagnosis } from "@recognizer/core";
+import { type Diagnosis, sensorsInEffect } from "@recognizer/core";
 import { readDiagnosis } from "../adapters/filesystem/diagnosis-translator.js";
 import type { Io } from "../cli.js";
-import { configFile } from "../config.js";
-import { parseConfig, registeredSensors } from "../config-parse.js";
 import { validateRunRecord } from "../log-document.js";
+import { manifestPorts } from "../manifest-ports.js";
 import { logDirectory, type RunRecord } from "../run-log.js";
 
 export type Refusal = { reason: string; diagnosis?: Diagnosis; at: number };
@@ -61,11 +60,9 @@ function senseEntries(record: RunRecord) {
     .flatMap((phase) => phase.entries);
 }
 
-export function registeredNames(io: Io, root: string): string[] {
+export function registeredNames(io: Io, _root: string): string[] {
   try {
-    return registeredSensors(parseConfig(io.readFile(configFile(root)))).map(
-      ({ name }) => name,
-    );
+    return sensorsInEffect(manifestPorts(io)).map(({ name }) => name);
   } catch {
     return [];
   }

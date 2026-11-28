@@ -7,7 +7,8 @@ import { run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
-import { type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
+import { BIN, type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
+import { describerManifestText } from "./support/manifest-text.js";
 import { sensorManifest } from "./support/sensor-program.js";
 
 const COMMIT = "abc123";
@@ -46,8 +47,9 @@ function ask(
   scan: Record<string, unknown>,
   argv: string[],
   extra: Record<string, string> = {},
+  options: FakeOptions = {},
 ) {
-  const fake = repository(scan, extra);
+  const fake = repository(scan, extra, options);
   const code = run([...argv, "--repository", ROOT], fake.io);
 
   return { code, out: fake.out(), err: fake.err(), fake };
@@ -345,8 +347,15 @@ describe("show", () => {
   });
 
   describe("responsibility", () => {
-    const describer =
-      "describer:\n  command: [describe-it, '{module}']\n  version: '1'\n";
+    const describing: FakeOptions = {
+      onPath: ["recognizer-describe-it"],
+      programs: {
+        "recognizer-describe-it": (args) =>
+          args.at(-1) === "manifest"
+            ? { stdout: describerManifestText("1") }
+            : undefined,
+      },
+    };
     const source = "print('hi')\n";
     const hash = (text: string) =>
       createHash("sha256").update(text, "utf8").digest("hex");
@@ -357,12 +366,21 @@ describe("show", () => {
           [order]: {
             line: "Holds an order.",
             source_hash: hash(sourceText),
-            describer: ["describe-it", "{module}"],
+            describer: [
+              `${BIN}/recognizer-describe-it`,
+              "run",
+              "--model",
+              "{model}",
+              "{request}",
+            ],
             version: "1",
           },
         },
       });
-    const status = (extra: Record<string, string>) => {
+    const status = (
+      extra: Record<string, string>,
+      options: FakeOptions = {},
+    ) => {
       const text = extra[`${ROOT}/${order}`];
       const cache =
         text === undefined
@@ -377,27 +395,32 @@ describe("show", () => {
             };
 
       return JSON.parse(
-        ask(python, ["show", order, "--json"], { ...cache, ...extra }).out,
+        ask(python, ["show", order, "--json"], { ...cache, ...extra }, options)
+          .out,
       ).responsibility;
     };
 
     it("is current when the line matches the source and the describer", () => {
       expect(
-        status({
-          [`${ROOT}/.recognizer/config.yaml`]: describer,
-          [`${ROOT}/.recognizer/responsibilities.json`]: entry(source),
-          [`${ROOT}/${order}`]: source,
-        }),
+        status(
+          {
+            [`${ROOT}/.recognizer/responsibilities.json`]: entry(source),
+            [`${ROOT}/${order}`]: source,
+          },
+          describing,
+        ),
       ).toEqual({ status: "current", line: "Holds an order." });
     });
 
     it("is out of date after the source changes", () => {
       expect(
-        status({
-          [`${ROOT}/.recognizer/config.yaml`]: describer,
-          [`${ROOT}/.recognizer/responsibilities.json`]: entry(source),
-          [`${ROOT}/${order}`]: "changed\n",
-        }),
+        status(
+          {
+            [`${ROOT}/.recognizer/responsibilities.json`]: entry(source),
+            [`${ROOT}/${order}`]: "changed\n",
+          },
+          describing,
+        ),
       ).toEqual({ status: "out-of-date", line: "Holds an order." });
     });
 

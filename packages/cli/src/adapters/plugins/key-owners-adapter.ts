@@ -1,17 +1,13 @@
 import {
-  commandKey,
   type InstalledSensorEntry,
   type KeyEntry,
   type KeyOwners,
   notAnsweringLine,
   placeholderPattern,
   readInstalledSensors,
-  readManifestCommand,
-  readRegisteredSensors,
   type SectionEntry,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { parseConfig, registeredSensors } from "../../config-parse.js";
 import { manifestPorts } from "../../manifest-ports.js";
 
 interface Published {
@@ -67,66 +63,19 @@ function sameEntry(a: unknown, b: unknown): boolean {
 export class KeyOwnersAdapter implements KeyOwners {
   constructor(private readonly io: Io) {}
 
-  private registered(root: string) {
-    const file = `${root.replace(/\/+$/, "")}/.recognizer/config.yaml`;
-    const config = (() => {
-      try {
-        return this.io.exists(file)
-          ? parseConfig(this.io.readFile(file), ["sensors"])
-          : null;
-      } catch {
-        return null;
-      }
-    })();
-    const sensors = registeredSensors(config);
-    const read = readRegisteredSensors(sensors, (words) =>
-      readManifestCommand(
-        manifestPorts(this.io),
-        words.map((word) => word.split("{repository}").join(root)),
-      ),
-    );
-
-    return { sensors, read };
-  }
-
-  schemas(root?: string) {
+  schemas(_root?: string) {
     const path = readInstalledSensors(manifestPorts(this.io));
-    const registered = root === undefined ? null : this.registered(root);
-    const registeredNames = new Set(
-      (registered?.sensors ?? [])
-        .filter((one) => one.manifest !== undefined)
-        .map((one) => one.name),
-    );
-    const published: Published[] = [
-      ...path.sensors
-        .filter((sensor) => !registeredNames.has(sensor.name))
-        .map((sensor) => ({
-          id: sensor.name,
-          label: `recognizer-sense-${sensor.name}`,
-          sensor,
-        })),
-      ...(registered?.sensors ?? []).flatMap((one) => {
-        const sensor = registered?.read.entries[commandKey(one.command)];
-
-        return sensor === undefined || one.manifest === undefined
-          ? []
-          : [{ id: one.name, label: `sensors.${one.name}`, sensor }];
-      }),
-    ];
+    const published: Published[] = path.sensors.map((sensor) => ({
+      id: sensor.name,
+      label: `sensors.${sensor.name}`,
+      sensor,
+    }));
     const installed = {
       sensors: published,
-      unreadable: [
-        ...path.unreadable
-          .filter((one) => !registeredNames.has(one.name))
-          .map((one) => ({
-            label: `recognizer-sense-${one.name}`,
-            reason: one.reason,
-          })),
-        ...(registered?.read.unreadable ?? []).map((one) => ({
-          label: `sensors.${one.name}`,
-          reason: one.reason,
-        })),
-      ],
+      unreadable: path.unreadable.map((one) => ({
+        label: `sensors.${one.name}`,
+        reason: one.reason,
+      })),
     };
     const suiteKeys = new Map<string, KeyEntry>();
     const sections = new Map<string, SectionEntry>();

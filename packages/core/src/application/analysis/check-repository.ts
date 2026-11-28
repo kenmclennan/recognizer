@@ -24,6 +24,7 @@ import {
   type ReportedViolation,
   settleBaseline,
 } from "../history/settle-baseline.js";
+import { sensorCommand } from "../plugins/installed-sensors.js";
 import {
   notMeasuredLine,
   undeclaredSensors,
@@ -45,6 +46,7 @@ import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
 import { runStructureAnalysis } from "./run-structure-analysis.js";
+import type { SensorsInEffect } from "./sensors-in-effect.js";
 
 export interface SensorStatus {
   name: string;
@@ -59,6 +61,7 @@ export interface SensorStatus {
 export interface CheckPorts {
   analysis: Analysis;
   config: ConfigRepository;
+  catalog: SensorsInEffect;
   findings: FindingsRepository;
   policy: PolicyRepository;
   baselines: BaselineRepository;
@@ -142,7 +145,7 @@ function gather(
   const sensors: SensorStatus[] = [];
   const documents: SensorFindings[] = [];
   const resolved = ports.config.structureSettings(root);
-  const registered = ports.config.sensorNames(root);
+  const registered = ports.catalog.sensorsInEffect().map(({ name }) => name);
   let metrics: ModuleMetrics[] = [];
   let folderMetrics: FolderMetrics[] = [];
   let unknownFiles: UnknownFiles | null = null;
@@ -264,7 +267,14 @@ function gather(
   const suitesConfigured = (ports.config.tests(sensorConfig) ?? []).length > 0;
 
   for (const notice of undeclaredSensors(
-    ports.config.registeredSensors(sensorConfig),
+    ports.catalog.sensorsInEffect().map((one) => ({
+      name: one.name,
+      command: sensorCommand(
+        one.command,
+        ports.config.sensorSettings(sensorConfig, one.name),
+      ),
+      manifest: one.manifest,
+    })),
     suitesConfigured,
   )) {
     say("stderr", `${notice.line}\n`);

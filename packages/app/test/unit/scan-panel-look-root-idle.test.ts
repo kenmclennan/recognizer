@@ -16,12 +16,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     f = (await scanPanelFacts([GROUPS])).facts;
   }, scaledTimeout(900000));
 
-  it("lists an unregistered installed sensor as one untickable not-registered row and renders no fix text", () => {
-    expect(f.unregistered.keys).toEqual(["structure", "crap", "mutation"]);
-    expect(f.unregistered.fixLines).toBe(0);
-    expect(f.unregisteredSummary).not.toMatch(/Mutation/);
-  });
-
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
     expect(f.fresh.order).toEqual([
       "rail-files",
@@ -61,7 +55,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(title("crap")).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
     );
-    expect(title("tally")).toBe("tally");
+    expect(title("tally")).toBe("Runs tally.");
   });
 
   it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
@@ -83,11 +77,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.down).toEqual([
       { name: "Structural analysis", disabled: false },
       { name: "Descriptions", disabled: false },
-      { name: "crap", disabled: false },
-      { name: "mutation", disabled: false },
-      { name: "tally", disabled: false },
       { name: "alpha", disabled: false },
       { name: "beta", disabled: false },
+      { name: "tally", disabled: false },
+      { name: "crap", disabled: false },
+      { name: "mutation", disabled: false },
     ]);
   });
 

@@ -459,18 +459,6 @@ Then(
 );
 
 Given(
-  "a Mine sensor that runs tests is registered without a manifest",
-  function (this: ScanWorld) {
-    this.fakes.sensors.installed.set("mine", {
-      name: "mine",
-      runsTests: true,
-      held: false,
-      withoutManifest: true,
-    });
-  },
-);
-
-Given(
   "a Mine sensor that runs tests is registered with a manifest",
   function (this: ScanWorld) {
     this.addSensor("mine", true);

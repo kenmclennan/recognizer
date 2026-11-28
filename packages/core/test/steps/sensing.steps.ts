@@ -7,6 +7,7 @@ import {
   InvalidRequest,
   type SensorRequest,
   sensorCommand,
+  sensorProgram,
 } from "../../src/index.js";
 import type { ScanWorld } from "../fakes/world.js";
 
@@ -68,12 +69,10 @@ function install(
   more: {
     runsTests?: boolean;
     scoped?: boolean;
-    registered?: boolean;
     display?: string;
     listed?: boolean;
     runCommand?: string[];
     manifestCommand?: string[];
-    withoutManifest?: boolean;
   } = {},
 ): void {
   world.fakes.sensors.installed.set(name, {
@@ -81,16 +80,12 @@ function install(
     runsTests: more.runsTests ?? false,
     held: false,
     ...(more.scoped === undefined ? {} : { scoped: more.scoped }),
-    ...(more.registered === undefined ? {} : { registered: more.registered }),
     ...(more.display === undefined ? {} : { display: more.display }),
     ...(more.listed === undefined ? {} : { listed: more.listed }),
     ...(more.runCommand === undefined ? {} : { runCommand: more.runCommand }),
     ...(more.manifestCommand === undefined
       ? {}
       : { manifestCommand: more.manifestCommand }),
-    ...(more.withoutManifest === undefined
-      ? {}
-      : { withoutManifest: more.withoutManifest }),
   });
 }
 
@@ -131,15 +126,7 @@ Given(
   },
 );
 
-Given(
-  "a Tally sensor is registered and a Margin sensor is installed but not registered",
-  function (this: ScanWorld) {
-    install(this, "tally");
-    install(this, "margin", { registered: false });
-  },
-);
-
-const MINE_RUN = ["python3", "sense.py", "run", "--settings", "{}"];
+const MINE_RUN = ["python3", "sense.py"];
 
 Given(
   "a Mine sensor that runs tests under its own command and manifest is registered",
@@ -148,17 +135,6 @@ Given(
       runsTests: true,
       runCommand: MINE_RUN,
       manifestCommand: ["python3", "sense.py", "manifest"],
-    });
-  },
-);
-
-Given(
-  "a Mine sensor that runs tests under its own command is registered without a manifest",
-  function (this: ScanWorld) {
-    install(this, "mine", {
-      runsTests: true,
-      runCommand: MINE_RUN,
-      withoutManifest: true,
     });
   },
 );
@@ -183,9 +159,9 @@ Given(
 );
 
 Given(
-  "a Tally sensor is installed with the display {string} and is not registered",
+  "a Tally sensor is installed with the display {string} and is registered",
   function (this: ScanWorld, display: string) {
-    install(this, "tally", { display, registered: false });
+    install(this, "tally", { display });
   },
 );
 
@@ -193,13 +169,6 @@ Given(
   "a Margin sensor that is not listed is installed and registered",
   function (this: ScanWorld) {
     install(this, "margin", { listed: false });
-  },
-);
-
-Given(
-  "the config registers the uninstalled sensors {string}",
-  function (this: ScanWorld, list: string) {
-    this.fakes.config.uninstalled = names(list);
   },
 );
 
@@ -294,7 +263,7 @@ Then(
 
     assert.deepEqual(
       one?.command.slice(0, 1),
-      sensorCommand(name, {}).slice(0, 1),
+      sensorCommand([sensorProgram(name)], {}).slice(0, 1),
     );
     assert.ok(one?.command.includes("--repository"));
   },

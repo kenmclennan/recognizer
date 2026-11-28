@@ -24,7 +24,6 @@ const SCAN_FILES = {
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const TARGET = `${ROOT}/.recognizer/cache/findings/review.json`;
-const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
 function finding(id = "review:1", changes: Record<string, unknown> = {}) {
   return {
@@ -57,12 +56,15 @@ function reporting(
     files?: Record<string, string>;
     stdin?: string;
     commit?: string | null;
+    onPath?: string[];
   } = {},
 ) {
   const fake = fakeIo({
     ...(options.commit === null ? {} : { commit: options.commit ?? COMMIT }),
     files: { ...SCAN_FILES, ...options.files },
     scanners: { [PYTHON]: { output: SCAN } },
+    sensorManifests: true,
+    ...(options.onPath === undefined ? {} : { onPath: options.onPath }),
     ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
     now: () => Date.UTC(2026, 10, 2, 10, 30, 0),
   });
@@ -174,24 +176,14 @@ describe("recognizer report", () => {
   });
 
   it("refuses structure, a registered sensor name and a name outside the pattern with exit 2", () => {
-    const files = {
-      [CONFIG]:
-        'sensors:\n  mine:\n    command: [mine, "{commit}", "{output}"]\n',
-    };
+    const onPath = ["recognizer-sense-mine"];
 
     for (const name of ["structure", "mine", "Bad Name", ""]) {
-      const result = reporting(["--as", name], { stdin: document(), files });
+      const result = reporting(["--as", name], { stdin: document(), onPath });
 
       expect(result.code).toBe(2);
       expect(result.fake.writes).toEqual([]);
     }
-  });
-
-  it("accepts the name of an installed sensor that is not registered", () => {
-    const result = reporting(["--as", "crap"], { stdin: document() });
-
-    expect(result.code).toBe(0);
-    expect(result.fake.writes).not.toEqual([]);
   });
 
   it("needs --as", () => {

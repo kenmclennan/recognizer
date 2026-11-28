@@ -16,6 +16,7 @@ import {
   tempDirectory,
   writeShim,
 } from "./plugin-path.js";
+import { registerWords } from "./plugin-registry-shim.js";
 
 const DISPLAYS: Record<string, string> = {
   python: "Python",
@@ -86,6 +87,15 @@ async function doctor(
   const report = JSON.parse(out) as DoctorReport;
 
   return { report, code, text: out };
+}
+
+function registerCommand(
+  fixture: Setup,
+  kind: "sensor" | "describer",
+  name: string,
+  command: string[],
+): void {
+  registerWords(fixture.bin, kind, name, command);
 }
 
 function problemsOf(report: DoctorReport, area: string) {
@@ -495,37 +505,20 @@ describe("doctor: a scanner that does not report tests", () => {
 });
 
 describe("doctor: registered plugins", () => {
-  const SENSOR =
-    "sensors:\n  mine:\n    command: [recognizer-sense-mine, run, --repository, '{repository}']\n    manifest: [recognizer-sense-mine, manifest]\n";
-
-  it("reports plugin-missing with the recorded install line", async () => {
-    const fixture = setup(
-      `${SENSOR}install:\n  recognizer-sense-mine: get mine\n`,
-    );
-    const { report } = await doctor(fixture);
-
-    expect(problemsOf(report, "sensors")).toEqual([
-      expect.objectContaining({
-        code: "plugin-missing",
-        subject: "mine",
-        fix: { text: "get mine", command: null },
-      }),
-    ]);
-  });
-
   it("gives the instruction when no install line is recorded", async () => {
-    const [problem] = problemsOf(
-      (await doctor(setup(SENSOR))).report,
-      "sensors",
-    );
+    const fixture = setup();
+
+    registerCommand(fixture, "sensor", "mine", ["recognizer-sense-mine"]);
+
+    const [problem] = problemsOf((await doctor(fixture)).report, "sensors");
 
     expect(problem?.fix.text).toBe(
-      "install recognizer-sense-mine: no install line is recorded for it, run recognizer plugin add mine on a machine that has it",
+      `install recognizer-sense-mine, or remove its registration with recognizer plugin unregister mine`,
     );
   });
 
   it("reports plugin-manifest when the manifest does not answer", async () => {
-    const fixture = setup(SENSOR);
+    const fixture = setup();
 
     writeShim(fixture.bin, "recognizer-sense-mine", "garbage");
 
@@ -535,7 +528,7 @@ describe("doctor: registered plugins", () => {
   });
 
   it("reports an unsupported protocol as a problem naming both versions and the install line", async () => {
-    const fixture = setup(SENSOR);
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -557,7 +550,7 @@ describe("doctor: registered plugins", () => {
   });
 
   it("reports a sensor-gap from the plugin's own check", async () => {
-    const fixture = setup(SENSOR);
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -661,9 +654,7 @@ describe("doctor: registered plugins", () => {
   });
 
   it("reports a describer-gap when the describer's check fails", async () => {
-    const fixture = setup(
-      "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",
-    );
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -682,33 +673,8 @@ describe("doctor: registered plugins", () => {
     });
   });
 
-  it("reports a describer-gap when the describer's command has no run element", async () => {
-    const fixture = setup(
-      "describer:\n  command: [recognizer-describe-d, --model, '{model}']\n  version: v1\n",
-    );
-
-    writeShim(
-      fixture.bin,
-      "recognizer-describe-d",
-      manifestFor("describer", "d", { check: true }),
-    );
-
-    const problems = problemsOf((await doctor(fixture)).report, "describers");
-
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toMatchObject({ code: "describer-gap" });
-    expect(problems[0]?.line).toBe(
-      "the describer does not speak the plugin verbs: its command has no run element",
-    );
-    expect(problems[0]?.fix.text).toBe(
-      "add the run word to the describer command with recognizer config describer.command",
-    );
-  });
-
   it("passes the words before run to the describer's check", async () => {
-    const fixture = setup(
-      "describer:\n  command: [recognizer-describe-d, --flag, '{repository}', run, --model, '{model}', '{request}']\n  version: v1\n",
-    );
+    const fixture = setup();
     const log = join(fixture.repo, "arguments.log");
     const program = join(fixture.bin, "recognizer-describe-d");
 
@@ -717,6 +683,11 @@ describe("doctor: registered plugins", () => {
       "recognizer-describe-d",
       manifestFor("describer", "d", { check: true }),
     );
+    registerCommand(fixture, "describer", "d", [
+      program,
+      "--flag",
+      "{repository}",
+    ]);
     writeFileSync(
       program,
       readFileSync(program, "utf8").replace(
@@ -735,9 +706,7 @@ describe("doctor: registered plugins", () => {
   });
 
   it("the failure line keeps its wording", async () => {
-    const fixture = setup(
-      "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",
-    );
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -824,7 +793,7 @@ describe("doctor: registered plugins", () => {
 
   it("starts nothing but git, manifest and check, and never a repository script", async () => {
     const fixture = setup(
-      `${SENSOR}  other:\n    command: [node, scripts/x.mjs]\n`,
+      "sensors:\n  other:\n    command: [node, scripts/x.mjs]\n",
     );
     const record = { commands: [] as string[] };
 
@@ -916,17 +885,11 @@ describe("doctor: PATH isolation", () => {
 });
 
 describe("doctor: titles name their subject", () => {
-  const sensorLine = (name: string) =>
-    `sensors:\n  ${name}:\n    command: [recognizer-sense-${name}, run, --repository, '{repository}']\n    manifest: [recognizer-sense-${name}, manifest]\n`;
-  const SENSOR = sensorLine("mine");
-
   const titleOf = async (fixture: Setup, area: string) =>
     problemsOf((await doctor(fixture)).report, area).map((one) => one.title);
 
   it("reports two sensor-gaps with titles naming each sensor", async () => {
-    const fixture = setup(
-      `${sensorLine("crap")}${sensorLine("mutation").slice("sensors:\n".length)}`,
-    );
+    const fixture = setup();
 
     for (const [name, display] of [
       ["crap", "C.R.A.P."],
@@ -962,7 +925,7 @@ describe("doctor: titles name their subject", () => {
   });
 
   it("title names the subject: sensor-gap", async () => {
-    const fixture = setup(SENSOR);
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -981,9 +944,7 @@ describe("doctor: titles name their subject", () => {
   });
 
   it("title names the subject: describer-gap", async () => {
-    const fixture = setup(
-      "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",
-    );
+    const fixture = setup();
 
     writeShim(
       fixture.bin,
@@ -998,13 +959,17 @@ describe("doctor: titles name their subject", () => {
   });
 
   it("title names the subject: plugin-missing", async () => {
-    expect(await titleOf(setup(SENSOR), "sensors")).toEqual([
+    const fixture = setup();
+
+    registerCommand(fixture, "sensor", "mine", ["recognizer-sense-mine"]);
+
+    expect(await titleOf(fixture, "sensors")).toEqual([
       "The mine plugin is not installed",
     ]);
   });
 
   it("title names the subject: plugin-manifest", async () => {
-    const fixture = setup(SENSOR);
+    const fixture = setup();
 
     writeShim(fixture.bin, "recognizer-sense-mine", "garbage");
 
@@ -1030,7 +995,7 @@ describe("doctor: titles name their subject", () => {
   });
 
   it("title names the subject: plugin-protocol for a sensor and a scanner", async () => {
-    const sensor = setup(SENSOR);
+    const sensor = setup();
 
     writeShim(
       sensor.bin,
@@ -1136,28 +1101,8 @@ describe("doctor: titles name their subject", () => {
 });
 
 describe("doctor: sensors under an explicit manifest command", () => {
-  const entry = (name: string, program: string, manifest: boolean) =>
-    `sensors:\n  ${name}:\n    command: [${program}, run, --repository, '{repository}']\n${
-      manifest ? `    manifest: [${program}, manifest]\n` : ""
-    }`;
-  const configOf = (fixture: Setup) =>
-    readFileSync(join(fixture.repo, ".recognizer", "config.yaml"), "utf8");
   const configProblems = async (fixture: Setup) =>
     problemsOf((await doctor(fixture)).report, "config");
-
-  it("names the missing manifest of a recognizer-sense short-form entry and rewrites nothing", async () => {
-    const text = "sensors:\n  mutation:\n    max_minutes: 10\n";
-    const fixture = setup(text);
-    const found = await configProblems(fixture);
-
-    expect(found.map((one) => one.code)).toEqual(["sensor-manifest-missing"]);
-    expect(found[0]?.subject).toBe("mutation");
-    expect(found[0]?.fix.text).toContain(
-      "recognizer config --add sensors.mutation.manifest recognizer-sense-mutation",
-    );
-    expect(found[0]?.fix.text).toContain("manifest");
-    expect(configOf(fixture)).toBe(text);
-  });
 
   it("gives no manifest finding when the short-form entry carries a manifest", async () => {
     const fixture = setup(
@@ -1167,15 +1112,10 @@ describe("doctor: sensors under an explicit manifest command", () => {
     expect(await configProblems(fixture)).toEqual([]);
   });
 
-  it("gives no manifest finding for a custom command with no manifest", async () => {
-    const fixture = setup(entry("mine", "python3", false));
-
-    expect(await configProblems(fixture)).toEqual([]);
-    expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([]);
-  });
-
   it("reports a custom sensor whose manifest program cannot be started as missing", async () => {
-    const fixture = setup(entry("mine", "my-sensor", true));
+    const fixture = setup();
+
+    registerCommand(fixture, "sensor", "mine", ["my-sensor"]);
 
     expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([
       expect.objectContaining({ code: "plugin-missing", subject: "mine" }),
@@ -1183,8 +1123,11 @@ describe("doctor: sensors under an explicit manifest command", () => {
   });
 
   it("checks a custom sensor whose manifest declares a check", async () => {
-    const fixture = setup(entry("mine", "my-sensor", true));
+    const fixture = setup();
 
+    registerCommand(fixture, "sensor", "mine", [
+      join(fixture.bin, "my-sensor"),
+    ]);
     writeShim(
       fixture.bin,
       "my-sensor",
@@ -1203,5 +1146,50 @@ describe("doctor: sensors under an explicit manifest command", () => {
         line: "custom gap",
       }),
     ]);
+  });
+});
+
+describe("doctor: sensors come from the registry", () => {
+  it("lists a registered sensor that the config does not name", async () => {
+    const fixture = setup(
+      "sensors:\n  other:\n    command: [other-sensor, run]\n",
+    );
+
+    writeShim(
+      fixture.bin,
+      "recognizer-sense-mine",
+      manifestFor("sensor", "mine", { check: true }),
+      {
+        check: JSON.stringify({
+          gaps: [{ code: "x", suite: null, line: "mine gap" }],
+        }),
+      },
+    );
+
+    expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([
+      expect.objectContaining({ code: "sensor-gap", subject: "mine" }),
+    ]);
+  });
+
+  it("does not list a sensor only the config names", async () => {
+    const fixture = setup(
+      "sensors:\n  other:\n    command: [other-sensor, run]\n",
+    );
+
+    writeShim(
+      fixture.bin,
+      "recognizer-sense-mine",
+      manifestFor("sensor", "mine", { check: true }),
+      {
+        check: JSON.stringify({
+          gaps: [{ code: "x", suite: null, line: "mine gap" }],
+        }),
+      },
+    );
+
+    const problems = problemsOf((await doctor(fixture)).report, "sensors");
+
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.map((one) => one.subject)).not.toContain("other");
   });
 });

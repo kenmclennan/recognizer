@@ -6,6 +6,7 @@ import {
   describerManifestText,
   type FakeOptions,
   fakeIo,
+  OFFICIAL_ON_PATH,
   PYTHON,
   ROOT,
   type SensorsPreflight,
@@ -16,12 +17,9 @@ const COMMIT = "abc123";
 const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const LOG = `${ROOT}/.recognizer/cache/log`;
-const REFERENCE =
-  'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: "v1"\n';
-const IN_TREE =
-  'describer:\n  command: [node, "{repository}/packages/describers/claude/dist/bin.js", run, --model, "{model}", "{request}"]\n  version: "v1"\n  build:\n    command: [npm, run, build]\n    directory: packages/describers/claude\n';
-const CUSTOM =
-  'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
+const DESCRIBER = "recognizer-describe-claude";
+const BUILD =
+  'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: "v1"\n  build:\n    command: [npm, run, build]\n    directory: packages/describers/claude\n';
 
 function manifestOr(
   fallback: (args: string[]) => {
@@ -67,13 +65,6 @@ function current(): string {
   });
 }
 
-const REGISTERED_BOTH =
-  "sensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n";
-
-function registeringBoth(config: string): string {
-  return config.includes("sensors:") ? config : config + REGISTERED_BOTH;
-}
-
 function setup(
   config: string,
   preflight?: SensorsPreflight,
@@ -86,10 +77,11 @@ function setup(
       [`${ROOT}/m0.py`]: "one",
       [`${ROOT}/m1.py`]: "two",
       [PY_CACHE]: current(),
-      [CONFIG]: registeringBoth(config),
+      [CONFIG]: config,
     },
     scanners: { [PYTHON]: { output: current() } },
     sensorManifests: true,
+    onPath: [...OFFICIAL_ON_PATH, DESCRIBER],
     programs: {
       "installed-sensors": (args, files) => {
         files.set(
@@ -178,7 +170,7 @@ describe("scan preflight: the early stage", () => {
 
   it("is no gap with --describe alone and no commit", async () => {
     const options = {
-      ...setup(REFERENCE),
+      ...setup(""),
       commit: undefined,
       programs: {
         "recognizer-describe-claude": manifestOr(() => ({
@@ -193,7 +185,7 @@ describe("scan preflight: the early stage", () => {
 
   it("gives the describer gap for a reference describer whose --check fails", async () => {
     const calls: string[][] = [];
-    const options = setup(REFERENCE, undefined, {
+    const options = setup("", undefined, {
       programs: {
         "recognizer-describe-claude": manifestOr((args) => {
           calls.push(args);
@@ -208,26 +200,14 @@ describe("scan preflight: the early stage", () => {
 
     expect(code).toBe(4);
     expect(err).toContain(
-      "the describer rejects the arguments the scan passes (describe): install recognizer-describe-claude",
+      "the describer rejects the arguments the scan passes (describe): brew install --cask kenmclennan/tap/recognizer",
     );
     expect(calls).toEqual([["check"]]);
   });
 
-  it("gives the describer gap for a registered reference describer with no run element", async () => {
-    const options = setup(
-      'describer:\n  command: [recognizer-describe-claude, --model, "{model}", "{request}"]\n  version: "v1"\n',
-    );
-    const { code, err } = await scan(options, "--describe");
-
-    expect(code).toBe(4);
-    expect(err).toContain(
-      "the describer does not speak the plugin verbs: its command has no run element (describe)",
-    );
-  });
-
   it("gives the declared build fix for a describer the repository builds", async () => {
-    const options = setup(IN_TREE, undefined, {
-      programs: { node: manifestOr(() => ({ status: 2 })) },
+    const options = setup(BUILD, undefined, {
+      programs: { [DESCRIBER]: manifestOr(() => ({ status: 2 })) },
     });
     const { out } = await scan(options, "--describe", "--json");
     const gap = events(out).find(
@@ -251,39 +231,13 @@ describe("scan preflight: the early stage", () => {
   });
 
   it("gives no gap for a reference describer whose --check passes", async () => {
-    const options = setup(REFERENCE, undefined, {
+    const options = setup("", undefined, {
       programs: {
         "recognizer-describe-claude": manifestOr(() => ({ stdout: "ok\n" })),
       },
     });
 
     expect((await scan(options, "--describe")).code).toBe(0);
-  });
-
-  it("only start-checks a describer that is not a reference describer", async () => {
-    const calls: string[][] = [];
-    const options = setup(CUSTOM, undefined, {
-      programs: {
-        "custom-describer": (args) => {
-          calls.push(args);
-
-          return { stdout: "a line\n" };
-        },
-      },
-    });
-
-    expect((await scan(options, "--describe")).code).toBe(0);
-    expect(calls[0]).toEqual(["--version"]);
-
-    const absent = setup(CUSTOM, undefined, {
-      programs: { "custom-describer": () => ({ started: false }) },
-    });
-    const refused = await scan(absent, "--describe");
-
-    expect(refused.code).toBe(4);
-    expect(refused.err).toContain(
-      "the describer program custom-describer does not start",
-    );
   });
 
   describe("gives one gap per ticked installed sensor whose program does not start", () => {
@@ -345,7 +299,7 @@ describe("scan preflight: the early stage", () => {
   });
 
   it("reports nothing for a describer that is not ticked", async () => {
-    const options = setup(REFERENCE, undefined, {
+    const options = setup("", undefined, {
       programs: { "recognizer-describe-claude": () => ({ status: 2 }) },
     });
 
@@ -425,13 +379,13 @@ describe("scan preflight: the project stage", () => {
 
   it("is exit 4 with the gap, no sensor run, no describer call, and the skipped phases recorded", async () => {
     const described: string[][] = [];
-    const options = setup(CUSTOM, gapsFor("crap"), {
+    const options = setup("", gapsFor("crap"), {
       programs: {
-        "custom-describer": (args) => {
+        [DESCRIBER]: manifestOr((args) => {
           described.push(args);
 
           return { stdout: "a line\n" };
-        },
+        }),
         "installed-sensors": () => ({}),
       },
     });
@@ -447,7 +401,7 @@ describe("scan preflight: the project stage", () => {
 
     expect(code).toBe(4);
     expect(sensorRuns(fake)).toEqual([]);
-    expect(described).toEqual([["--version"]]);
+    expect(described).toEqual([["check"]]);
     expect(
       all.map((one) => [one.event, one.phase ?? one.state ?? null]),
     ).toEqual([
@@ -493,7 +447,7 @@ describe("scan preflight: the project stage", () => {
     );
 
     expect(code).toBe(4);
-    expect(err.replace(/^warning: crap is not registered.*\n/, "")).toBe("");
+    expect(err).toBe("");
     expect(gaps).toMatchObject({
       gaps: [
         {
@@ -533,14 +487,14 @@ describe("scan preflight: the project stage", () => {
 
 describe("scan preflight: skipped phases and stopped runs", () => {
   it("records the describe per-language skip", async () => {
-    const options = setup(CUSTOM, undefined, {
+    const options = setup("", undefined, {
       files: {
         [`${ROOT}/a.py`]: "",
-        [CONFIG]: CUSTOM,
+        [CONFIG]: "",
         [`${APP_CONFIG}/config.json`]: `${JSON.stringify({ describing: { model: "sonnet", batch_size: 4 } })}\n`,
       },
       scanners: { [PYTHON]: { status: 1, stderr: "boom" } },
-      programs: { "custom-describer": () => ({ stdout: "a line\n" }) },
+      programs: { [DESCRIBER]: manifestOr(() => ({ stdout: "a line\n" })) },
     });
     const { fake, out } = await scan(options, "--describe", "--json");
     const [record] = records(fake);
@@ -554,10 +508,11 @@ describe("scan preflight: skipped phases and stopped runs", () => {
   });
 
   it("never exits 4 for a describe run that the failure threshold stopped", async () => {
-    const options = setup(CUSTOM, undefined, {
+    const options = setup("", undefined, {
       programs: {
-        "custom-describer": (args) =>
-          args[0] === "--version" ? {} : { status: 1, stderr: "nope" },
+        [DESCRIBER]: manifestOr((args) =>
+          args[0] === "check" ? {} : { status: 1, stderr: "nope" },
+        ),
       },
     });
     const { code } = await scan(options, "--describe");

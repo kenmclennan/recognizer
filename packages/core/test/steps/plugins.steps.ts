@@ -194,28 +194,13 @@ Given(
   },
 );
 
-Given(
-  "the repository registers the sensors {string} and {string} with install line {string}",
-  function (this: ScanWorld, present: string, absent: string, line: string) {
-    this.fakes.repositoryChecks.directories.add("/repo");
-    this.fakes.repositoryChecks.configDocumentValue = {
-      kind: "parsed",
-      document: {
-        install: { [`/first/recognizer-sense-${absent}`]: line },
-        sensors: {
-          [present]: {
-            command: [`recognizer-sense-${present}`, "run"],
-            manifest: [`/first/recognizer-sense-${present}`, "manifest"],
-          },
-          [absent]: {
-            command: [`recognizer-sense-${absent}`, "run"],
-            manifest: [`/first/recognizer-sense-${absent}`, "manifest"],
-          },
-        },
-      },
-    };
-  },
-);
+Given("the repository has a config", function (this: ScanWorld) {
+  this.fakes.repositoryChecks.directories.add("/repo");
+  this.fakes.repositoryChecks.configDocumentValue = {
+    kind: "parsed",
+    document: {},
+  };
+});
 
 Given(
   "a program {string} that prints {string} on stdout",
@@ -520,21 +505,14 @@ Given(
 Given(
   "the repository registers the checkable sensors {string} and {string}",
   function (this: ScanWorld, first: string, second: string) {
-    this.fakes.repositoryChecks.registered = [first, second].map((name) => ({
-      name,
-      command: sensorCommand(name),
-      manifest: manifestCommand(name),
-    }));
-    installSensor(this, "margin", false);
-    registerMachineWide(this, "margin");
+    for (const name of [first, second]) {
+      installSensor(this, name, false);
+      registerMachineWide(this, name);
+    }
   },
 );
 
-Given("the repository registers no sensor", function (this: ScanWorld) {
-  this.fakes.repositoryChecks.registered = [];
-  installSensor(this, "margin", false);
-  registerMachineWide(this, "margin");
-});
+Given("the repository registers no sensor", function (this: ScanWorld) {});
 
 When(
   "the sensors {string} are checked",
@@ -743,16 +721,6 @@ Then(
 );
 
 Then(
-  "the installed sensor {string} is run with its own command",
-  function (this: ScanWorld, name: string) {
-    assert.equal(
-      state(this).selection[0]?.command[0],
-      `recognizer-sense-${name}`,
-    );
-  },
-);
-
-Then(
   "the request is refused with {string}",
   function (this: ScanWorld, text: string) {
     assert.ok(state(this).refusal?.includes(text), state(this).refusal ?? "");
@@ -760,12 +728,11 @@ Then(
 );
 
 Then(
-  "the refusal lists {string} before {string} before {string}",
-  function (this: ScanWorld, a: string, b: string, c: string) {
+  "the refusal lists {string} before {string}",
+  function (this: ScanWorld, a: string, b: string) {
     const text = state(this).refusal ?? "";
 
     assert.ok(text.indexOf(a) !== -1 && text.indexOf(a) < text.indexOf(b));
-    assert.ok(text.indexOf(b) < text.indexOf(c));
   },
 );
 

@@ -31,8 +31,16 @@ export class FakeDescriber implements Describer {
   closed = 0;
   started: string[][] = [];
 
+  unreadableReason: string | undefined = undefined;
+  install: string | undefined = undefined;
+
   locate(): LocatedDescriber {
+    if (this.unreadableReason !== undefined) {
+      return { describer: null, unreadable: this.unreadableReason };
+    }
+
     return {
+      ...(this.install === undefined ? {} : { install: this.install }),
       describer: this.registered
         ? ({
             describerRef: true,

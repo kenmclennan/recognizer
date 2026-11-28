@@ -5,16 +5,13 @@ import {
   discoverPlugins,
   type InstalledPlugin,
   KINDS,
-  programName,
   scanSchemaMessage,
 } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { type Config, readConfig } from "./config.js";
-import { registeredSensors } from "./config-parse.js";
 import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
 import { documentValidators, manifestPorts } from "./manifest-ports.js";
-import { registeredSensorPlugins } from "./registered-listing.js";
 import { languageRulesOf } from "./scanners.js";
 
 const USAGE = ["usage: recognizer plugins [REPOSITORY] [--json]"];
@@ -45,18 +42,10 @@ function scannerUse(
 
 function readRegistration(io: Io, root: string): Config | null {
   try {
-    return readConfig(io, root, ["sensors", "describer", "scanners"]);
+    return readConfig(io, root, ["scanners"]);
   } catch {
     return null;
   }
-}
-
-function isRegistered(plugin: InstalledPlugin, config: Config): boolean {
-  const program = programName(plugin.kind, plugin.name);
-
-  return plugin.kind === "sensor"
-    ? registeredSensors(config).some((one) => one.command[0] === program)
-    : config.describer?.command[0] === program;
 }
 
 function schemaColumn(plugin: InstalledPlugin): string {
@@ -98,18 +87,8 @@ export function runPlugins(argv: string[], io: Io): number {
   }
 
   const found = discoverPlugins(manifestPorts(io));
-  const custom = registeredSensorPlugins(
-    io,
-    root,
-    new Set(
-      found.plugins
-        .filter((one) => one.kind === "sensor")
-        .map((one) => one.name),
-    ),
-  );
-  const plugins = [...found.plugins, ...custom.plugins];
-  const unreadable = [...found.unreadable, ...custom.unreadable];
-  const customCommands = new Set(custom.plugins.map((one) => one.command));
+  const plugins = found.plugins;
+  const unreadable = found.unreadable;
   const config = readRegistration(io, root);
   const scanners = plugins.filter((one) => one.kind === "scanner");
   const chosen =
@@ -134,9 +113,7 @@ export function runPlugins(argv: string[], io: Io): number {
         : `scanner for ${languages.join(", ")}`;
     }
 
-    return customCommands.has(plugin.command) || isRegistered(plugin, config)
-      ? "registered"
-      : UNUSED;
+    return "registered";
   };
 
   if (values.json === true) {

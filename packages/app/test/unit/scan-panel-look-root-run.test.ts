@@ -36,7 +36,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
         .filter((r: Facts) => r.spinner > 0)
         .map((r: Facts) => r.key),
     ).toEqual(["describe", "crap", "tally"]);
-    expect([1, 2, 4].map((i) => f.run.first.rows[i].state)).toEqual([
+    expect([1, 4, 6].map((i) => f.run.first.rows[i].state)).toEqual([
       "0 of 2",
       "running",
       "running",

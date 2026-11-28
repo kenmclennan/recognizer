@@ -1098,7 +1098,7 @@ export const COMMANDS: Command[] = [
     ],
     options: [{ flag: "--json", description: "print JSON instead of text" }],
     output: {
-      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any. When the config has a tests list and no registered sensor runs tests, each installed sensor that runs tests is a problem with code `unregistered-plugin` and the fix `recognizer plugin add <name>`",
+      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any",
       json: "{ repository, ok, problems, areas: [{ name: config|policy|scanners|sensors, skipped: string | null, problems: [{ code, subject, line, fix: { text, command: string | null }, severity: problem|warning }] }], warnings }",
     },
     exitCodes: [

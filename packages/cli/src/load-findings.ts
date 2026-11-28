@@ -8,6 +8,7 @@ import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { RepositoryFilesAdapter } from "./adapters/filesystem/repository-files-adapter.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
+import { SensorCatalogAdapter } from "./adapters/plugins/sensor-catalog-adapter.js";
 import { TestReportsAdapter } from "./adapters/plugins/test-reports-adapter.js";
 import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import type { Io } from "./cli.js";
@@ -21,6 +22,7 @@ export function loadFindings(
   return loadFindingsFrom(
     {
       config: new ConfigAdapter(io, ["sensors"]),
+      catalog: new SensorCatalogAdapter(io),
       findings: new FindingsAdapter(io),
       policy: new PolicyAdapter(io),
       source: new SourceFilesAdapter(io),

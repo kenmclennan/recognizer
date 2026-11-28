@@ -26,8 +26,6 @@ export interface RepositoryChecks {
   publishedKeys(root: string): PublishedValues;
   policyFacts(root: string): PolicyFacts;
   scansState(root: string, languages: readonly string[]): CachedScansState;
-  registeredSensors(
-    root: string,
-  ): { name: string; command: string[]; manifest?: string[] }[];
+  sensorSettings(root: string, name: string): Record<string, unknown>;
   suites(root: string): readonly unknown[] | undefined;
 }

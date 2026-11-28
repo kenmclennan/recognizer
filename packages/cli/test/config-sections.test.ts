@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { registeredSensorNamesIn } from "../src/config-parse.js";
 import {
+  describerManifestText,
   fakeIo,
   OFFICIAL_ON_PATH,
   PYTHON,
@@ -14,8 +15,9 @@ const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const RETIRED = "sensors:\n  structure:\n    distance_threshold: 0.5\n";
 const BAD_DESCRIBER = "describer:\n  command: []\n";
 
-function fresh(config: string) {
+function fresh(config: string, stdin?: string) {
   return fakeIo({
+    stdin,
     sensorManifests: true,
     onPath: OFFICIAL_ON_PATH,
     commit: COMMIT,
@@ -97,7 +99,7 @@ describe("a retired sensors key in a fresh repository", () => {
 describe("a bad describer section beside a valid sensors section", () => {
   it("does not refuse find and refuses describe", () => {
     const find = fresh(BAD_DESCRIBER);
-    const describe = fresh(BAD_DESCRIBER);
+    const describe = freshWith(BAD_DESCRIBER);
 
     expect(run(["find", "m0", "--repository", ROOT], find.io)).toBe(0);
     expect(run(["describe", "--repository", ROOT], describe.io)).toBe(2);
@@ -105,13 +107,20 @@ describe("a bad describer section beside a valid sensors section", () => {
   });
 });
 
-const GOOD_DESCRIBER =
-  "describer:\n  command: [describer-bin]\n  version: v1\n";
+const DESCRIBER_PROGRAM = "recognizer-describe-test";
+const GOOD_DESCRIBER = "";
 const INVALID_TESTS = "tests: []\n";
 
 function freshWith(config: string, extra: Record<string, string> = {}) {
   return fakeIo({
     commit: COMMIT,
+    onPath: [DESCRIBER_PROGRAM],
+    programs: {
+      [DESCRIBER_PROGRAM]: (args) =>
+        args[0] === "manifest"
+          ? { stdout: describerManifestText("v1") }
+          : { stdout: "a line\n" },
+    },
     files: { [`${ROOT}/a.py`]: "", [CONFIG]: config, ...extra },
     scanners: { [PYTHON]: { output: scanJson(2, 1, { commit: COMMIT }) } },
   });
@@ -134,16 +143,15 @@ describe("each command refuses only the sections it reads", () => {
 
     expect(run(["sensors", "check", "--repository", ROOT], refused.io)).toBe(2);
     expect(refused.err()).toContain("distance_threshold was removed");
-    expect(run(["sensors", "check", "--repository", ROOT], ignored.io)).toBe(2);
-    expect(ignored.err()).toContain("no sensors are registered");
+    expect(run(["sensors", "check", "--repository", ROOT], ignored.io)).toBe(0);
     expect(ignored.err()).not.toContain("config/describer");
   });
 
   it("names the section each command reads when both are bad", () => {
     const both = `${RETIRED}${BAD_DESCRIBER}`;
     const sensors = fresh(both);
-    const report = fresh(both);
-    const describe = fresh(both);
+    const report = fresh(both, "{}");
+    const describe = freshWith(both);
 
     expect(run(["sensors", "check", "--repository", ROOT], sensors.io)).toBe(2);
     expect(sensors.err()).toContain("distance_threshold was removed");

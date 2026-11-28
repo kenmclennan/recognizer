@@ -2,10 +2,13 @@ import {
   commandKey,
   type InstalledRead,
   type InstalledSensorEntry,
+  type PluginRegistrations,
   type RegisteredRead,
   type RegisteredSensorInput,
   type SensorCatalog,
+  type SensorInEffect,
   sensorProgram,
+  sensorsInEffect,
 } from "../../src/index.js";
 import type { FakeSensors } from "./fake-sensors.js";
 
@@ -14,9 +17,45 @@ export class FakeSensorCatalog implements SensorCatalog {
   failReads = false;
   readonly unreadable: string[] = [];
   readonly registeredReads: string[][] = [];
+  named: string[] = [];
   readonly pathRunsTests = new Map<string, boolean>();
 
-  constructor(private readonly sensors: FakeSensors) {}
+  constructor(
+    private readonly sensors: FakeSensors,
+    private readonly registrations?: PluginRegistrations,
+  ) {}
+
+  sensorsInEffect(): SensorInEffect[] {
+    if (this.failReads) {
+      throw new Error("the plugin listing failed");
+    }
+
+    const world = [...this.sensors.installed.values()]
+      .filter((sensor) => sensor.name !== "structure")
+      .map((sensor) => ({
+        name: sensor.name,
+        command: sensor.runCommand ?? [sensorProgram(sensor.name)],
+        manifest: sensor.manifestCommand ?? [
+          sensorProgram(sensor.name),
+          "manifest",
+        ],
+      }));
+    const seeded = [
+      ...(this.registrations === undefined
+        ? []
+        : sensorsInEffect({ registrations: this.registrations })),
+      ...this.named.map((name) => ({
+        name,
+        command: [name],
+        manifest: [name, "manifest"],
+      })),
+    ];
+
+    return [
+      ...world,
+      ...seeded.filter((one) => !world.some((have) => have.name === one.name)),
+    ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  }
 
   installedNames(): string[] {
     if (this.failReads) {
@@ -45,6 +84,7 @@ export class FakeSensorCatalog implements SensorCatalog {
       .map((sensor) => ({
         name: sensor.name,
         display: sensor.display ?? sensor.name,
+        ...(sensor.install === undefined ? {} : { install: sensor.install }),
         runs_tests: this.pathRunsTests.get(sensor.name) ?? sensor.runsTests,
         scoped: sensor.scoped ?? false,
         listed: sensor.listed ?? true,
@@ -96,6 +136,9 @@ export class FakeSensorCatalog implements SensorCatalog {
         result.entries[commandKey(one.command)] = {
           name: invented.name,
           display: invented.display ?? invented.name,
+          ...(invented.install === undefined
+            ? {}
+            : { install: invented.install }),
           runs_tests: invented.runsTests,
           scoped: invented.scoped ?? false,
           listed: invented.listed ?? true,

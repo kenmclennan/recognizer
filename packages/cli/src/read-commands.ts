@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   type Dependency,
+  describerInEffect,
   discoverPlugins,
   type FindingNote,
   findingsByModuleFrom,
@@ -14,8 +15,7 @@ import {
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
-import { type ConfigRead, readConfig } from "./config.js";
-import { describerVersion } from "./describer-version.js";
+import type { ConfigRead } from "./config.js";
 import { describingFor } from "./describing-container.js";
 import { InputError } from "./errors.js";
 import { metricsLine, metricsTable } from "./folder-metrics.js";
@@ -307,18 +307,18 @@ export function runShow(argv: string[], io: Io): number {
       .filter((edge) => edge.from === id),
     loaded.values.private === true,
   );
-  const configured = readConfig(io, loaded.root, ["describer"])?.describer;
+  const found = describerInEffect(manifestPorts(io));
   const responsibility = describingFor(io).readResponsibility({
     root: loaded.root,
     repository: loaded.repository,
     id,
     describer:
-      configured === undefined
+      found === null || "unreadable" in found
         ? null
         : {
             describerRef: true,
-            command: configured.command,
-            version: describerVersion(configured),
+            command: found.command,
+            version: found.version,
           },
   });
   const findings = findingsOf(loaded, io).get(id) ?? [];

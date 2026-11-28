@@ -10,7 +10,6 @@ import type { Io } from "./cli.js";
 import { asInputError, InputError } from "./errors.js";
 import { manifestPorts } from "./manifest-ports.js";
 import { pluginPorts } from "./plugins-container.js";
-import { registeredSensorEntries } from "./registered-listing.js";
 import { reportJson, reportText } from "./sensors-check.js";
 
 const USAGE = [
@@ -102,26 +101,15 @@ export function runSensors(argv: string[], io: Io): number {
   }
 
   const installed = readInstalledSensors(manifestPorts(io));
-  const registered = registeredSensorEntries(
-    io,
-    resolve(values.repository ?? "."),
-    new Set(installed.sensors.map(({ name }) => name)),
-  );
-  const unreadable = [...installed.unreadable, ...registered.unreadable];
-  const sensors: (InstalledSensorEntry & { registered?: boolean })[] = [
-    ...installed.sensors,
-    ...registered.entries.map((entry) => ({ ...entry, registered: true })),
-  ];
+  const unreadable = installed.unreadable;
+  const sensors: InstalledSensorEntry[] = installed.sensors;
 
   if (values.json === true) {
     io.stdout(`${JSON.stringify(sensors, null, 2)}\n`);
   } else if (sensors.length > 0) {
     io.stdout(
       `${sensors
-        .map(
-          ({ name, description, registered: custom }) =>
-            `${name}  ${description ?? ""}${custom === true ? "  registered" : ""}`,
-        )
+        .map(({ name, description }) => `${name}  ${description ?? ""}`)
         .join("\n")}\n`,
     );
   }

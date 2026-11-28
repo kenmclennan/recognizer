@@ -1,7 +1,8 @@
 import type { CheckableSensor } from "../../domain/plugins/sensor-check.js";
 import {
-  installedSensorNames,
   readRegisteredSensors,
+  sensorCommand,
+  sensorsInEffect,
   withRegistered,
 } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
@@ -17,15 +18,21 @@ export function sensorsToCheck(
   name: string | undefined,
   withSuites = true,
 ): CheckableSensor[] {
-  const registered = ports.repository.registeredSensors(root);
-  const installed = installedSensorNames(ports);
+  const registered = sensorsInEffect(ports).map((one) => ({
+    name: one.name,
+    command: sensorCommand(
+      one.command,
+      ports.repository.sensorSettings(root, one.name),
+    ),
+    manifest: one.manifest,
+  }));
   const requested = name === undefined ? "all" : [name];
 
   if (!withSuites) {
-    return selectSensors(registered, requested, installed);
+    return selectSensors(registered, requested);
   }
 
-  const chosen = selectSensors(registered, requested, installed);
+  const chosen = selectSensors(registered, requested);
   const read = withRegistered(
     { sensors: [], unreadable: [] },
     readRegisteredSensors(chosen, (words) => readManifestCommand(ports, words)),
@@ -34,7 +41,6 @@ export function sensorsToCheck(
   return selectSensors(
     registered,
     requested,
-    installed,
     ports.repository.suites(root),
     read,
   );

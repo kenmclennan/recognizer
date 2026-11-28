@@ -120,7 +120,7 @@ recognizer log --last             # what the last run did and why it failed
 A repository configures Recognizer in its `.recognizer/` folder. Edit it with `recognizer config` and `recognizer policy`, which check every key and value as they write, or ask an agent to do it with the setup skill (see [Agents](#agents)).
 
 - `policy.yaml` declares the rules: the entry points, the files to ignore and the imports to forbid (files in `A` must not import `B` or `C`). An import that breaks a rule is a violation. Start from a policy in [`docs/policies/`](policies) (`hexagonal.yaml` or `vertical-slices.yaml`), or build one with `recognizer policy --add-forbid --from '<glob>' --to '<glob>'`. `recognizer check --init-baseline` records today's violations in `baselines/violations.json`, and from then on `recognizer check` fails on any new one. The baseline may only shrink.
-- `config.yaml` registers the sensors to run and, optionally, a describer. `recognizer plugin add crap` registers an installed sensor with its defaults. C.R.A.P. and Mutation run the repository's own test suites, set under `tests:`; `recognizer help sensors crap` prints the setup guide and `recognizer sensors check --run` confirms it works. With no describer registered, `recognizer describe` refuses and says how to register one (`recognizer plugin add claude` for the official one). `recognizer help config` lists every key.
+- Every sensor registered on the machine applies to every repository, and the newest registered describer is the one in effect; `recognizer plugin register <program|path>` registers one. `config.yaml` holds only each sensor's settings. C.R.A.P. and Mutation run the repository's own test suites, set under `tests:`; `recognizer help sensors crap` prints the setup guide and `recognizer sensors check --run` confirms it works. With no describer registered, `recognizer describe` refuses and says how to register one. `recognizer help config` lists every key.
 
 Commit `policy.yaml`, `config.yaml`, `views/`, `responsibilities.json` and `baselines/`. `.recognizer/cache/` holds scans, findings, overlays and run logs and ignores itself with its own `.gitignore`, so the repository needs no line for it.
 
@@ -143,7 +143,7 @@ It writes two skills under `~/.claude/skills/`: `recognizer`, which answers ques
 Start with `recognizer doctor` in the repository: it checks the config, the policy, the scanners, the sensors and the describer, and prints the fix for each problem. `recognizer plugins` lists every plugin found on `PATH`, with its protocol and what uses it in the repository. When a scan or describe fails, `recognizer log --last` shows what ran and why it failed.
 
 - **`recognizer: command not found`.** The cask is not installed, or its links were removed. Run `brew install --cask kenmclennan/tap/recognizer`.
-- **Doctor reports `plugin-missing` for a registered sensor or describer.** The program is not on `PATH` on this machine. The fix is the install line recorded under `install.<program>` in `config.yaml`; when none is recorded it says so, and `recognizer plugin add <name>` on a machine that has the plugin records one.
+- **Doctor reports `plugin-missing` for a registered sensor or describer.** The registered program does not start on this machine, so its manifest cannot be read and no install line is known. The fix is to install the program, or to remove the registration with `recognizer plugin unregister <name>`.
 - **Doctor reports `plugin-manifest`.** The program is on `PATH` but its `manifest` verb did not answer or did not validate. `recognizer plugin check <program>` says which result failed.
 - **Doctor reports `plugin-protocol`.** The plugin speaks a protocol the installed Recognizer does not. The previous protocol is a warning (the plugin still runs); any other is a problem and the plugin is refused. The fix is the plugin's install line: upgrade it.
 - **Doctor reports `plugin-scan-schema`.** A scanner writes a scan the app would refuse: its scan schema is newer than the app reads, or older with a listed break in between. `recognizer plugins` shows each scanner's version and names the same plugin on stderr. Run `brew upgrade --cask kenmclennan/tap/recognizer` when the scanner is newer, or the scanner's install line when it is older.
@@ -169,7 +169,7 @@ Start with `recognizer doctor` in the repository: it checks the config, the poli
 
 What a repository can add today:
 
-- **An installed sensor or describer.** `recognizer plugin add <name>` registers it in `config.yaml` and records its install line under `install`, so `recognizer doctor` can tell a teammate how to install it. `recognizer plugins` lists what is installed.
+- **An installed sensor or describer.** `recognizer plugin register <program|path>` registers it for the machine, and its manifest carries the install line `recognizer doctor` shows when the program is missing. `recognizer plugins` lists what is registered.
 - **Its own sensor.** Register any command under `sensors` in `config.yaml`. It is run from the repository root with `{repository}`, `{commit}` and `{output}` filled in, and writes a findings document ([`schema/findings.schema.json`](schema/findings.schema.json)) to `{output}`. It runs when asked: `recognizer scan --sense <name>` or `--sense all`.
 
   ```yaml
@@ -178,7 +178,7 @@ What a repository can add today:
       command: [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]
   ```
 
-- **Its own describer.** Set `describer.command` and `describer.version` in `config.yaml`. The command is given `{repository}`, `{module}`, `{model}` and `{request}` (a JSON request file) and prints one line. Bump the version to redo every line.
+- **Its own describer.** Register it with `recognizer plugin register <program|path>`. Its command is given `run --model {model} {request}` (a JSON request file) and prints one line. Its manifest's `prompt_version` is its version: change it to redo every line.
 - **An agent's review.** `recognizer report --as <name>` files review findings in the findings form, and the viewer and `recognizer check` treat them like a sensor's.
 - **A different scanner for a language.** Install a `recognizer-scan-<name>` program whose manifest claims the language, and when two scanners claim it, choose one with `recognizer config scanners.<language> <name>`. The `RECOGNIZER_SCAN_<LANGUAGE>` variables are retired: to run a checkout's scanner, put a launcher named `recognizer-scan-<name>` first on `PATH`.
 

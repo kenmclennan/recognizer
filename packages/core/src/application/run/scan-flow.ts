@@ -14,6 +14,7 @@ import type { DescribingSettings } from "../describing/describing-settings.js";
 import type { LocatedDescriber } from "../describing/locate-describer.js";
 import { notMeasuredLine } from "../plugins/undeclared-sensors.js";
 import type { ExtractOutcome } from "../scanning/extract-scans.js";
+import { installLines } from "../sensing/install-lines.js";
 import type { PlannedSensor } from "../sensing/plan-sensors.js";
 import type { Clock } from "../shared/ports/clock.js";
 import type { Git } from "../shared/ports/git.js";
@@ -53,8 +54,8 @@ export function* scanFlow(
   const discovery = phases.discoverScanners();
   const limits = ports.process.limits(root);
   let named: Record<string, string> = {};
-  let install: Record<string, string> = {};
   let describerBuild: DescriberBuild | null = null;
+  let install: Record<string, string> = {};
   let located: LocatedDescriber = { describer: null };
   let selected: PlannedSensor[] = [];
   let chosen: Record<string, string[]> = {};
@@ -76,7 +77,6 @@ export function* scanFlow(
     const setup = phases.readScannerSetup(root);
 
     named = setup.scanners;
-    install = setup.install;
     describerBuild = setup.describerBuild;
 
     const config = phases.readRunConfig(root, request.ignoreRetiredConfig);
@@ -86,6 +86,8 @@ export function* scanFlow(
     }
 
     const selection = phases.selectSensors({ root, config, limits, sense });
+
+    install = installLines(selection, located);
 
     const plan = phases.planSensors({
       selection,

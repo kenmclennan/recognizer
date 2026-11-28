@@ -3,9 +3,11 @@ import { join } from "node:path";
 import {
   expandShortForms,
   isScoped,
+  readRegisteredSensors,
   receivesSuites,
   runsTests,
   selectSensors,
+  withRegistered,
   withSuiteSettings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
@@ -18,12 +20,33 @@ import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import { REPO } from "./helpers.js";
 import {
+  exampleManifest,
   readExamples,
   readRegisteredExamples,
-  selectedWithExamples,
 } from "./installed-read.js";
 
-const INSTALLED: readonly string[] = ["crap", "mutation"];
+function selectedWithExamples(
+  registered: { name: string; command: string[]; manifest?: string[] }[],
+  suites?: readonly unknown[],
+) {
+  const reader = (words: string[]) => {
+    const name = (words[0] as string).replace("recognizer-sense-", "");
+
+    return {
+      ok: true as const,
+      manifest:
+        name === "mine"
+          ? { ...exampleManifest("crap"), name, runs_tests: false }
+          : exampleManifest(name),
+    };
+  };
+  const read = withRegistered(
+    readExamples(),
+    readRegisteredSensors(registered, reader),
+  );
+
+  return selectSensors(registered, "all", suites, read);
+}
 
 const command = (settings: string) => [
   "recognizer-sense-crap",
@@ -470,12 +493,15 @@ describe("the tests list", () => {
 
   it("hands the list to the crap and mutation short forms and to no other sensor", () => {
     const config = parseConfig(
-      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n  mine:\n    command: [mine, run]\n`,
+      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n`,
     );
+    const mine = {
+      name: "mine",
+      command: ["mine", "run"],
+      manifest: ["mine", "manifest"],
+    };
     const selected = selectedWithExamples(
-      registeredSensors(config),
-      "all",
-      INSTALLED,
+      [...registeredSensors(config), mine],
       config.tests,
     );
 
@@ -493,35 +519,8 @@ describe("the tests list", () => {
     );
     const selected = selectedWithExamples(
       registeredSensors(config),
-      "all",
-      INSTALLED,
       config.tests,
     );
-
-    expect(settingsOf(selected[0])).toEqual({});
-  });
-
-  it("hands the list to a requested crap and mutation that are not registered", () => {
-    const suites = [{ name: "api" }];
-    const selected = selectedWithExamples(
-      [],
-      ["crap", "mutation"],
-      INSTALLED,
-      suites,
-    );
-
-    expect(settingsOf(selected[0])).toEqual({ tests: suites });
-    expect(settingsOf(selected[1])).toEqual({ tests: suites });
-  });
-
-  it("builds a requested mutation with no tests key when the config has none", () => {
-    const selected = selectSensors([], ["mutation"], INSTALLED);
-
-    expect(settingsOf(selected[0])).toEqual({});
-  });
-
-  it("builds a requested crap with no tests key when the config has none", () => {
-    const selected = selectSensors([], ["crap"], INSTALLED);
 
     expect(settingsOf(selected[0])).toEqual({});
   });

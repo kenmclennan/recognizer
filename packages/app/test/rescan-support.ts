@@ -127,7 +127,7 @@ export async function settledRun(root: Root, since: number): Promise<void> {
 }
 
 export const DESCRIBER_CONFIG =
-  "describer:\n  command: [describer, run, '--model', '{model}', '{request}']\n  version: v1\n";
+  "describer:\n  command: [describer]\n  version: v1\n";
 
 export function describerProgram(
   hold: { wait(): Promise<void> } | null = null,

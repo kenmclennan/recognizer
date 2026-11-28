@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
+import { installFakeDescriber } from "./fake-describer-shim.js";
 import { capture, REPO } from "./helpers.js";
 import { useScannerShim } from "./scan-helpers.js";
 import { signalGroup } from "./signal-group.js";
@@ -65,21 +66,7 @@ function repository(...flags: string[]): string {
 }
 
 function configure(root: string, ...flags: string[]): void {
-  const command = [
-    "node",
-    FAKE,
-    "run",
-    "{repository}",
-    ...flags,
-    "--model",
-    "{model}",
-    "{request}",
-  ];
-
-  writeFileSync(
-    join(root, ".recognizer/config.yaml"),
-    `describer:\n  command: ${JSON.stringify(command)}\n  version: "v1"\n`,
-  );
+  installFakeDescriber(root, "v1", flags);
 }
 
 function useDescribing(model: string, batchSize: number): void {
@@ -428,19 +415,6 @@ describe("the model marks lines out of date", () => {
 
     expect((await check(root)).ok).toBe(true);
     expect(responsibilities(root).modules[ORDER].version).toBe("v1");
-  });
-
-  it("leaves lines current for a describer that ignores the model", async () => {
-    const root = repository();
-
-    writeFileSync(
-      join(root, ".recognizer/config.yaml"),
-      `describer:\n  command: ["node", ${JSON.stringify(FAKE)}, "run", "{repository}", "{request}"]\n  version: "v1"\n`,
-    );
-    await run(["describe", "--all", "--repository", root], capture().io);
-    useDescribing("opus", 4);
-
-    expect((await check(root)).ok).toBe(true);
   });
 
   it("reports only the lines written by the other model", async () => {

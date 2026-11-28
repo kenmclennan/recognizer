@@ -1,4 +1,3 @@
-import { InvalidRequest } from "../../domain/invalid-request.js";
 import { comparePlugins } from "../../domain/plugin-order.js";
 import type {
   Manifest,
@@ -7,10 +6,6 @@ import type {
 } from "../../domain/plugins/manifest.js";
 import type { RegisteredPlugin } from "../../domain/plugins/registration.js";
 import type { FindingEntry } from "../../domain/plugins/sentence.js";
-import {
-  unregisteredMessage,
-  unregisteredSensors,
-} from "../../domain/plugins/unregistered.js";
 import type { Principle } from "../../domain/principles.js";
 import type { DocumentValidators } from "./ports/document-validators.js";
 import type { PluginRegistrations } from "./ports/plugin-registrations.js";
@@ -36,6 +31,7 @@ export interface InstalledSensorEntry {
   description?: string;
   expansion?: string;
   settings_title?: string;
+  install?: string;
   runs_tests: boolean;
   suite_keys?: { section: unknown; keys: unknown[] };
   placeholders: Record<string, PlaceholderDeclaration>;
@@ -59,6 +55,12 @@ export interface InstalledRead {
   unreadable: UnreadableSensor[];
   registered?: Record<string, InstalledSensorEntry>;
   registeredUnreadable?: UnreadableSensor[];
+}
+
+export interface RegistryReadPorts {
+  registrations: PluginRegistrations;
+  programs: Programs;
+  validators: DocumentValidators;
 }
 
 export type ManifestCommandReader = (command: string[]) => ManifestRead;
@@ -90,34 +92,8 @@ export function describerProgram(name: string): string {
   return `${DESCRIBE_PREFIX}${name}`;
 }
 
-export function sensorNameOf(command: readonly string[]): string | undefined {
-  const program = command[0];
-
-  if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
-    return undefined;
-  }
-
-  return program.slice(SENSE_PREFIX.length);
-}
-
-export function isReferenceDescriber(command: readonly string[]): boolean {
-  return (command[0] ?? "").startsWith(DESCRIBE_PREFIX);
-}
-
 export function noneRegistered(): string {
-  return `no describer is registered: install a describer plugin (a program named ${DESCRIBE_PREFIX}<name>) and register it with \`recognizer plugin add <name>\`, or set describer.command in .recognizer/config.yaml`;
-}
-
-export function refuseUnregistered(
-  registered: readonly string[],
-  requested: readonly string[],
-  installed: readonly string[],
-): void {
-  const names = unregisteredSensors(registered, requested, installed);
-
-  if (names.length > 0) {
-    throw new InvalidRequest(names.map(unregisteredMessage));
-  }
+  return "no describer is registered: install a describer plugin and register it with recognizer plugin register <program|path>";
 }
 
 function entryOf(manifest: Manifest): InstalledSensorEntry {
@@ -135,6 +111,7 @@ function entryOf(manifest: Manifest): InstalledSensorEntry {
     ...(manifest.settings_title === undefined
       ? {}
       : { settings_title: manifest.settings_title }),
+    install: manifest.install,
     runs_tests: manifest.runs_tests === true,
     ...(manifest.suite_keys === undefined
       ? {}
@@ -161,6 +138,25 @@ function registeredSensors(ports: {
   return (ports.registrations?.entries().plugins ?? []).filter(
     (entry) => entry.kind === "sensor",
   );
+}
+
+export interface SensorInEffect {
+  name: string;
+  command: string[];
+  manifest: string[];
+}
+
+export function sensorsInEffect(ports: {
+  registrations?: PluginRegistrations;
+}): SensorInEffect[] {
+  return registeredSensors(ports)
+    .filter((entry) => entry.name !== "structure")
+    .map((entry) => ({
+      name: entry.name,
+      command: [...entry.command],
+      manifest: [...entry.manifest],
+    }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 export function installedSensorNames(ports: {
@@ -344,11 +340,11 @@ function isSettingsMapping(value: unknown): value is Record<string, unknown> {
 }
 
 export function sensorCommand(
-  name: string,
+  program: readonly string[],
   settings: Record<string, unknown>,
 ): string[] {
   return [
-    `${SENSE_PREFIX}${name}`,
+    ...program,
     "run",
     "--repository",
     "{repository}",
@@ -368,7 +364,7 @@ function expandedEntry(
   const { manifest, ...settings } = entry;
 
   return {
-    command: sensorCommand(name, settings),
+    command: sensorCommand([`${SENSE_PREFIX}${name}`], settings),
     ...(manifest === undefined ? {} : { manifest }),
   };
 }

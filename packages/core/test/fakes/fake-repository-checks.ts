@@ -51,17 +51,11 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     return this.scansStateValue;
   }
 
-  registered: { name: string; command: string[]; manifest?: string[] }[] = [];
   suiteReads = 0;
+  settingsByName: Record<string, Record<string, unknown>> = {};
 
-  registeredSensors(): {
-    name: string;
-    command: string[];
-    manifest?: string[];
-  }[] {
-    return this.registered.filter(
-      (one) => one.name !== "structure" && one.command.length > 0,
-    );
+  sensorSettings(_root: string, name: string): Record<string, unknown> {
+    return this.settingsByName[name] ?? {};
   }
 
   suites(): readonly unknown[] | undefined {

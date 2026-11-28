@@ -56,12 +56,13 @@ Feature: Managing plugins
     When the describer "beta" is registered
     Then the registration is refused naming "other"
 
-  Scenario: The doctor reports an uninstalled sensor's install line
+  Scenario: The doctor reports a registered sensor that does not start and how to unregister it
     Given /first holds the sensor "alpha" with a valid manifest
     And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
-    And the repository registers the sensors "alpha" and "missing" with install line "brew install missing"
+    And the sensor "missing" at "/first/recognizer-sense-missing" is registered
+    And the repository has a config
     When the doctor runs
-    Then the sensors area has a plugin-missing problem for "missing" fixed by "brew install missing"
+    Then the sensors area has a plugin-missing problem for "missing" fixed by "install /first/recognizer-sense-missing, or remove its registration with recognizer plugin unregister missing"
     And the sensors area has no problem for "alpha"
 
   Scenario: A plugin check fails a program that prints junk on stdout
@@ -154,22 +155,16 @@ Feature: Managing plugins
     When the sensors "alpha" are checked
     Then the report of "alpha" has no work
 
-  Scenario: With no name every registered sensor is checked in config order
+  Scenario: With no name every registered sensor is checked in name order
     Given the repository registers the checkable sensors "b" and "a"
     When the sensors to check are chosen with name ""
-    Then the sensors to check are "b,a"
+    Then the sensors to check are "a,b"
 
-  Scenario: A named installed sensor that is not registered runs its own command
-    Given the repository registers the checkable sensors "b" and "a"
-    When the sensors to check are chosen with name "margin"
-    Then the sensors to check are "margin"
-    And the installed sensor "margin" is run with its own command
-
-  Scenario: An unknown sensor is refused with the registered and installed names
+  Scenario: An unknown sensor is refused with the registered names
     Given the repository registers the checkable sensors "b" and "a"
     When the sensors to check are chosen with name "nope"
     Then the request is refused with "no such sensor: nope"
-    And the refusal lists "no such sensor: nope" before "registered sensors: b, a" before "installed sensors: margin"
+    And the refusal lists "no such sensor: nope" before "registered sensors: a, b"
 
   Scenario: No registered sensors and no name is refused
     Given the repository registers no sensor

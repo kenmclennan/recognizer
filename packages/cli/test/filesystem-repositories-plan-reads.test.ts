@@ -4,11 +4,25 @@ import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js"
 import { ResponsibilitiesAdapter } from "../src/adapters/filesystem/responsibilities-adapter.js";
 import { StructureAdapter } from "../src/adapters/filesystem/structure-adapter.js";
 import { DescriberAdapter } from "../src/adapters/plugins/describer-adapter.js";
-import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
+import {
+  BIN,
+  describerManifestText,
+  fakeIo,
+  ROOT,
+  scanJson,
+} from "./scan-helpers.js";
 
 const H1 = "1".repeat(64);
 const H2 = "2".repeat(64);
 const D = "d".repeat(64);
+const DESCRIBER = "recognizer-describe-d";
+const DESCRIBER_WORDS = [
+  `${BIN}/${DESCRIBER}`,
+  "run",
+  "--model",
+  "{model}",
+  "{request}",
+];
 
 function seeded() {
   const python = scanJson(2, 0, {
@@ -37,19 +51,23 @@ function seeded() {
       "m0.py": {
         line: "Does the first thing.",
         source_hash: H1,
-        describer: ["describe"],
+        describer: DESCRIBER_WORDS,
         version: "v1",
       },
       "m1.py": {
         line: "Does the second thing.",
         source_hash: "0".repeat(64),
-        describer: ["describe"],
+        describer: DESCRIBER_WORDS,
         version: "v1",
       },
     },
   };
 
   return fakeIo({
+    onPath: [DESCRIBER],
+    programs: {
+      [DESCRIBER]: () => ({ stdout: describerManifestText("v1") }),
+    },
     files: {
       [`${ROOT}/.recognizer/cache/scan.python.json`]: python,
       [`${ROOT}/.recognizer/cache/scan.kotlin.json`]: kotlin,
@@ -57,8 +75,6 @@ function seeded() {
         JSON.stringify(findings),
       [`${ROOT}/.recognizer/responsibilities.json`]:
         JSON.stringify(responsibilities),
-      [`${ROOT}/.recognizer/config.yaml`]:
-        "describer:\n  command: [describe]\n  version: v1\n",
     },
   });
 }

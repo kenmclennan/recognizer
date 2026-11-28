@@ -12,9 +12,10 @@ import type {
   RunningCall,
   Say,
 } from "@recognizer/core";
+import { describerInEffect } from "@recognizer/core";
 import { readDescribing } from "../../app-settings.js";
 import type { Io } from "../../cli.js";
-import { findDescriber } from "../../describer-in-effect.js";
+import { manifestPorts } from "../../manifest-ports.js";
 import { readSource } from "../../module-source.js";
 import { createPluginLimits, prepareCall } from "../../plugin-run.js";
 import { entryFrom } from "../../run-log.js";
@@ -26,20 +27,25 @@ export class DescriberAdapter implements Describer {
   constructor(private readonly io: Io) {}
 
   locate(root: string): LocatedDescriber {
-    const found = findDescriber(this.io, root);
-    let describer: DescriberRef | null = null;
+    const found = describerInEffect(manifestPorts(this.io));
+    let located: LocatedDescriber = { describer: null };
 
-    if (found !== null) {
-      describer = {
-        describerRef: true,
-        command: found.command,
-        version: found.version,
+    if (found !== null && "unreadable" in found) {
+      located = { describer: null, unreadable: found.unreadable };
+    } else if (found !== null) {
+      located = {
+        describer: {
+          describerRef: true,
+          command: found.command,
+          version: found.version,
+        },
+        install: found.install,
       };
     }
 
     new ResponsibilitiesAdapter(this.io).read(root);
 
-    return { describer };
+    return located;
   }
 
   probe(

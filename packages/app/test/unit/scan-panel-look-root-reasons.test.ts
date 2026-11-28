@@ -23,7 +23,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.changed.amber).toBeNull();
     expect(f.changed.summary).toMatchObject({
       shape: "attention",
-      head: "Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
+      head: "Descriptions, alpha, beta, C.R.A.P., Mutation and tally have never run",
       bar: 0,
     });
     expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(

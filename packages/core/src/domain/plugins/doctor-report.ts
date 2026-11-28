@@ -19,7 +19,6 @@ import {
 } from "./manifest.js";
 import { type DisplayName, PROBLEM_TITLES } from "./problem-titles.js";
 import { NO_RUN_LINE } from "./sensor-check.js";
-import { UNREGISTERED_FIX, unregisteredMessage } from "./unregistered.js";
 
 export type AreaName =
   | "config"
@@ -54,8 +53,7 @@ export type ProblemCode =
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin"
-  | "unregistered-program"
-  | "sensor-manifest-missing";
+  | "unregistered-program";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -294,7 +292,7 @@ export function settingProblems(
 function missingFix(fact: PluginFact): SetupProblem["fix"] {
   return textFix(
     fact.installLine ??
-      `install ${fact.program}: no install line is recorded for it, run recognizer plugin add ${fact.name} on a machine that has it`,
+      `install ${fact.program}, or remove its registration with recognizer plugin unregister ${fact.name}`,
   );
 }
 
@@ -543,18 +541,6 @@ export function scannerProblems(
   return found;
 }
 
-export function kindOfProgram(program: string): PluginKind | null {
-  if (program.includes("/")) {
-    return null;
-  }
-
-  if (/^recognizer-sense-.+/.test(program)) {
-    return "sensor";
-  }
-
-  return /^recognizer-describe-.+/.test(program) ? "describer" : null;
-}
-
 export interface RegisteredPlugins {
   specs: PluginSpec[];
   named: Record<string, string>;
@@ -580,7 +566,6 @@ export interface DoctorFacts {
   languages: string[];
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
-  testsUnrun: { name: string; display?: string }[];
   unregisteredPrograms: UnregisteredProgram[];
   protocol: PluginFacts;
 }
@@ -592,25 +577,6 @@ const NONE: RegisteredPlugins = {
   sensors: [],
   describer: false,
 };
-
-function unregisteredProblems(
-  facts: DoctorFacts,
-  kind: PluginSpec["kind"],
-): Found[] {
-  if (kind !== "sensor") {
-    return [];
-  }
-
-  return facts.testsUnrun.map(
-    ({ name, display }): Found => ({
-      code: "unregistered-plugin",
-      subject: name,
-      line: unregisteredMessage(name),
-      fix: { text: UNREGISTERED_FIX(name), command: UNREGISTERED_FIX(name) },
-      display,
-    }),
-  );
-}
 
 function pluginArea(
   facts: DoctorFacts,
@@ -631,7 +597,6 @@ function pluginArea(
         : facts
             .plugins(specs)
             .flatMap((fact) => pluginProblems(fact, facts.protocol))),
-      ...unregisteredProblems(facts, kind),
     ],
   };
 }

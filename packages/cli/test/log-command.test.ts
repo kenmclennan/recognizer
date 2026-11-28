@@ -5,14 +5,17 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, run } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
 import {
+  BIN,
   type Fake,
   type FakeOptions,
   fakeIo,
+  type Program,
   PYTHON,
   ROOT,
   scanJson,
   useScannerShim,
 } from "./scan-helpers.js";
+import { sensorManifest } from "./support/sensor-program.js";
 
 const DIRECTORY = `${ROOT}/.recognizer/cache/log`;
 
@@ -384,9 +387,23 @@ describe("recognizer log", () => {
 
 describe("sense and measure", () => {
   const COMMIT = "abc123";
-  const REGISTER =
-    'sensors:\n  fake-sensor:\n    command: [fake-sensor, "{commit}", "{output}"]\n' +
-    '  other:\n    command: [other-sensor, "{output}"]\n';
+  const OUTPUT = (argv: string[]) => argv[argv.indexOf("--output") + 1];
+
+  function sensorScript(
+    name: string,
+    stderr: string,
+    content: string,
+  ): Program {
+    return (argv, files) => {
+      if (argv[0] === "manifest") {
+        return { stdout: sensorManifest(name) };
+      }
+
+      files.set(OUTPUT(argv) as string, content);
+
+      return stderr === "" ? undefined : { stderr };
+    };
+  }
 
   function document(overrides: Record<string, unknown> = {}) {
     return JSON.stringify({
@@ -403,18 +420,14 @@ describe("sense and measure", () => {
   async function sensing(content: string, ...args: string[]) {
     const fake = fakeIo({
       commit: COMMIT,
-      files: { [`${ROOT}/.recognizer/config.yaml`]: REGISTER },
+      onPath: ["recognizer-sense-fake-sensor", "recognizer-sense-other"],
       programs: {
-        "fake-sensor": (argv, files) => {
-          files.set(argv[argv.length - 1] as string, content);
-
-          return undefined;
-        },
-        "other-sensor": (argv, files) => {
-          files.set(argv[argv.length - 1] as string, content);
-
-          return { stderr: "chatty\n" };
-        },
+        "recognizer-sense-fake-sensor": sensorScript(
+          "fake-sensor",
+          "",
+          content,
+        ),
+        "recognizer-sense-other": sensorScript("other", "chatty\n", content),
       },
     });
     const code = await run(["scan", ROOT, "--sense", ...args], fake.io);
@@ -449,9 +462,16 @@ describe("sense and measure", () => {
       status: 0,
       outcome: "failed",
       command: [
-        "fake-sensor",
+        `${BIN}/recognizer-sense-fake-sensor`,
+        "run",
+        "--repository",
+        ROOT,
+        "--commit",
         COMMIT,
+        "--output",
         `${ROOT}/.recognizer/cache/findings/fake-sensor.json.tmp`,
+        "--settings",
+        "{}",
       ],
     });
     expect(sensed[0].reason).toContain("findings commit zzz");

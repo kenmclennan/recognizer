@@ -1,7 +1,7 @@
 import {
   commandKey,
   type InstalledRead,
-  refuseUnregistered,
+  sensorCommand,
   withRegistered,
 } from "../plugins/installed-sensors.js";
 import { selectSensors as selectFrom } from "../plugins/select-sensors.js";
@@ -15,21 +15,21 @@ export function selectSensors(
   input: SensorSelectionInput,
 ): SensorSelection {
   const { sense, config, limits } = input;
-  const installedNames = ports.catalog.installedNames();
-  const registered = ports.config.registeredSensors(config);
+  const registered = ports.catalog.sensorsInEffect().map((one) => ({
+    name: one.name,
+    command: sensorCommand(
+      one.command,
+      ports.config.sensorSettings(config, one.name),
+    ),
+    manifest: one.manifest,
+  }));
   const requested: "all" | string[] =
     sense === "all" || sense === null ? "all" : sense.map((one) => one.name);
   let installed: InstalledRead = { sensors: [], unreadable: [] };
   let selected: { name: string; command: string[]; manifest?: string[] }[] = [];
 
   if (sense !== null) {
-    const first = selectFrom(
-      registered,
-      requested,
-      installedNames,
-      undefined,
-      installed,
-    );
+    const first = selectFrom(registered, requested, undefined, installed);
     const read = ports.catalog.readRegistered(
       [
         ...first,
@@ -43,7 +43,6 @@ export function selectSensors(
     selected = selectFrom(
       registered,
       requested,
-      installedNames,
       ports.config.tests(config),
       withRegistered(installed, read),
     );
@@ -58,12 +57,6 @@ export function selectSensors(
       unreadable: read.unreadable,
     });
   }
-
-  refuseUnregistered(
-    registered.map((one) => one.name),
-    Array.isArray(requested) && sense !== null ? requested : [],
-    installedNames,
-  );
 
   return { selected, installed };
 }
