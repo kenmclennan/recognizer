@@ -61,7 +61,9 @@ export function installRecording(
 ): Served {
   const recording = { ...given, events: [...given.events] };
   const marks = given.marks ?? {};
+  const batchEnds = new Set(given.batches ?? []);
   let served = 0;
+  let joining = false;
   let limit =
     options.until === undefined
       ? recording.events.length
@@ -125,6 +127,22 @@ export function installRecording(
     for (const id of listeners) {
       callbacks.get(id)?.({ event: "core-event", id, payload });
     }
+
+    const failed =
+      (payload as { outcome?: { status?: string } }).outcome?.status ===
+      "failed";
+
+    if (failed) {
+      joining = true;
+    }
+
+    if (joining && served < limit && !batchEnds.has(served)) {
+      drip();
+
+      return;
+    }
+
+    joining = false;
 
     dripping = true;
 

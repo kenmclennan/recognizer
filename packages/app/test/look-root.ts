@@ -149,6 +149,7 @@ export function heldProgram(program: Program, gate: Gate): Program {
 export function failingProgram(
   program: Program,
   diagnosis?: Diagnosis,
+  reason = "",
 ): Program {
   return (call) => {
     if (call.args[0] !== "run") {
@@ -166,7 +167,7 @@ export function failingProgram(
       );
     }
 
-    return { started: true, status: 1, stdout: "", stderr: "" };
+    return { started: true, status: 1, stdout: "", stderr: reason };
   };
 }
 
@@ -312,6 +313,7 @@ export async function lookRoot(
     events: root.lines
       .filter(isEvent)
       .map((line) => JSON.parse(JSON.stringify(line))),
+    batches: [...root.batches],
     answers: scenario.answers ?? {},
     marks,
     hostEvents: scenario.hostEvents ?? [],

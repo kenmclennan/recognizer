@@ -175,17 +175,27 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
   }
 
   const started: Line[] = [];
+  const batches: number[] = [];
   let forwarded = 0;
+  let delivered = 0;
 
   const flush = () => {
+    const before = delivered;
+
     for (; forwarded < root.lines.length; forwarded += 1) {
       const line = root.lines[forwarded] as ServeLine;
 
       if (typeof line.id !== "number") {
+        delivered += 1;
+
         for (const handler of bridge.listeners.get("core-event") ?? []) {
           handler({ payload: line });
         }
       }
+    }
+
+    if (delivered > before) {
+      batches.push(delivered);
     }
   };
 
@@ -330,6 +340,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
         },
       }),
     lines: root.lines,
+    batches,
     testFile: `${REPOSITORY}/api/tests/a.test.ts`,
   };
 }
