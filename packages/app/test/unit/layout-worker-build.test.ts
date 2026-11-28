@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import type { ElkNode } from "elkjs/lib/elk-api";
 import { webkit as playwright } from "playwright";
 import { build } from "vite";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { lightcycleShapedGraph } from "../../src/lightcycle-shaped-graph";
 import { webkit } from "../../src/look-page";
+import { sharedBuild } from "../shared-build";
 
 const PAGE = `<!doctype html>
 <html><body><script>
@@ -64,74 +65,75 @@ async function buildApp(outDir: string): Promise<string> {
   return `/assets/${file}`;
 }
 
+const outDir = makeTempDir("layout-worker-");
+const builtWorkerPath = sharedBuild(() => buildApp(outDir));
+
+afterAll(() => {
+  rmSync(outDir, { recursive: true, force: true });
+});
+
 async function answerInBrowser(graph: ElkNode): Promise<string> {
-  const outDir = makeTempDir("layout-worker-");
+  const workerPath = await builtWorkerPath();
+  let report: (text: string) => void = () => {};
+  const reported = new Promise<string>((resolve) => {
+    report = resolve;
+  });
+  const server = createServer((request, response) => {
+    if (request.method === "POST" && request.url === "/result") {
+      const chunks: Buffer[] = [];
+
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        report(Buffer.concat(chunks).toString("utf8"));
+        response.end();
+      });
+
+      return;
+    }
+
+    if (request.url === "/graph") {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify(graph));
+
+      return;
+    }
+
+    if (request.url === "/") {
+      response.setHeader("content-type", "text/html");
+      response.end(PAGE.replace("WORKER_URL", JSON.stringify(workerPath)));
+
+      return;
+    }
+
+    if (request.url === workerPath) {
+      response.setHeader("content-type", "text/javascript");
+      response.end(readFileSync(join(outDir, workerPath)));
+
+      return;
+    }
+
+    response.statusCode = 404;
+    response.end();
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
 
   try {
-    const workerPath = await buildApp(outDir);
-    let report: (text: string) => void = () => {};
-    const reported = new Promise<string>((resolve) => {
-      report = resolve;
-    });
-    const server = createServer((request, response) => {
-      if (request.method === "POST" && request.url === "/result") {
-        const chunks: Buffer[] = [];
-
-        request.on("data", (chunk: Buffer) => chunks.push(chunk));
-        request.on("end", () => {
-          report(Buffer.concat(chunks).toString("utf8"));
-          response.end();
-        });
-
-        return;
-      }
-
-      if (request.url === "/graph") {
-        response.setHeader("content-type", "application/json");
-        response.end(JSON.stringify(graph));
-
-        return;
-      }
-
-      if (request.url === "/") {
-        response.setHeader("content-type", "text/html");
-        response.end(PAGE.replace("WORKER_URL", JSON.stringify(workerPath)));
-
-        return;
-      }
-
-      if (request.url === workerPath) {
-        response.setHeader("content-type", "text/javascript");
-        response.end(readFileSync(join(outDir, workerPath)));
-
-        return;
-      }
-
-      response.statusCode = 404;
-      response.end();
-    });
-
-    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const { port } = server.address() as AddressInfo;
+    const browser = await playwright.launch();
+    const silence = new Promise<string>((resolve) =>
+      setTimeout(() => resolve("TIMEOUT"), scaledTimeout(150000)),
+    );
 
     try {
-      const { port } = server.address() as AddressInfo;
-      const browser = await playwright.launch();
-      const silence = new Promise<string>((resolve) =>
-        setTimeout(() => resolve("TIMEOUT"), scaledTimeout(150000)),
-      );
+      await (await browser.newPage()).goto(`http://127.0.0.1:${port}/`);
 
-      try {
-        await (await browser.newPage()).goto(`http://127.0.0.1:${port}/`);
-
-        return await Promise.race([reported, silence]);
-      } finally {
-        await browser.close();
-      }
+      return await Promise.race([reported, silence]);
     } finally {
-      server.close();
+      await browser.close();
     }
   } finally {
-    rmSync(outDir, { recursive: true, force: true });
+    server.close();
   }
 }
 
