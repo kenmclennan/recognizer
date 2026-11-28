@@ -8,7 +8,6 @@ import {
   type RegisteredSensorInput,
   readInstalledSensors,
   readRegisteredSensors,
-  selectSensors,
   withRegistered,
 } from "@recognizer/core";
 import { ProgramsAdapter } from "../src/adapters/plugins/programs-adapter.js";
@@ -71,16 +70,4 @@ export function readRegisteredExamples(
     readExamples(failing),
     readRegisteredSensors(registered, readCommandOf(failing)),
   );
-}
-
-export function selectedWithExamples(
-  registered: RegisteredSensorInput[],
-  requested: "all" | string[],
-  installed: readonly string[],
-  suites?: readonly unknown[],
-) {
-  const first = selectSensors(registered, requested, installed);
-  const read = readRegisteredExamples(first);
-
-  return selectSensors(registered, requested, installed, suites, read);
 }

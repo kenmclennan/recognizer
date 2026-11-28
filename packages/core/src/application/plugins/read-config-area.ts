@@ -3,15 +3,12 @@ import {
   textFix,
   withRepository,
 } from "../../domain/plugins/doctor-commands.js";
-import {
-  type ConfigRegistration,
-  type Found,
-  kindOfProgram,
-  type PluginSpec,
-  type RegisteredPlugins,
+import type {
+  ConfigRegistration,
+  Found,
+  PluginSpec,
+  RegisteredPlugins,
 } from "../../domain/plugins/doctor-report.js";
-import { PREFIXES } from "../../domain/plugins/installed-plugin.js";
-import { manifestFix } from "../../domain/plugins/undeclared-sensors.js";
 import {
   duplicateSuites,
   duplicationFaultsIn,
@@ -25,25 +22,15 @@ import {
   withoutFaultySensorSettings,
   withoutRetiredKeys,
 } from "../configuration/inspect-config-document.js";
+import { DESCRIBER_RUN_WORDS } from "../describing/read-describer.js";
+import { sensorCommand, sensorsInEffect } from "./installed-sensors.js";
+import type { PluginRegistrations } from "./ports/plugin-registrations.js";
 import type { RepositoryChecks } from "./ports/repository-checks.js";
-import {
-  type ExpandedConfig,
-  expandedConfigOf,
-  registeredSensors,
-} from "./registered-sensors.js";
 
 export interface ConfigReading {
   problems: Found[];
   registered: ConfigRegistration;
 }
-
-const NONE: RegisteredPlugins = {
-  specs: [],
-  named: {},
-  install: {},
-  sensors: [],
-  describer: false,
-};
 
 const CONFIG_FILE = ".recognizer/config.yaml";
 const SKIP_CONFIG = "config has problems";
@@ -70,76 +57,88 @@ function stringMap(value: unknown): Record<string, string> {
     : {};
 }
 
-function settingsOf(
-  command: string[],
-  manifest: string[],
-): Record<string, unknown> | null {
-  const at = command.indexOf("--settings");
-  const text = at === -1 ? undefined : command[at + 1];
+function settingsIn(
+  document: Record<string, unknown>,
+  name: string,
+): Record<string, unknown> {
+  const sensors = document.sensors;
+  const entry =
+    typeof sensors === "object" && sensors !== null && !Array.isArray(sensors)
+      ? (sensors as Record<string, unknown>)[name]
+      : undefined;
 
-  if (text === undefined || manifest.length === 0) {
-    return null;
+  if (
+    typeof entry !== "object" ||
+    entry === null ||
+    Array.isArray(entry) ||
+    "command" in entry
+  ) {
+    return {};
   }
 
-  try {
-    const parsed: unknown = JSON.parse(text);
+  const { manifest: _manifest, ...settings } = entry as Record<string, unknown>;
 
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+  return settings;
 }
 
 function specsOf(
-  config: ExpandedConfig,
-  install: Record<string, string>,
+  registrations: PluginRegistrations,
+  document: Record<string, unknown>,
 ): PluginSpec[] {
-  const specs: PluginSpec[] = [];
+  const specs: PluginSpec[] = sensorsInEffect({ registrations }).map(
+    (sensor): PluginSpec => {
+      const settings = settingsIn(document, sensor.name);
 
-  for (const sensor of registeredSensors(config)) {
-    if (sensor.manifest !== undefined) {
-      const run = sensor.command[0] as string;
-      const program = sensor.manifest[0] as string;
-
-      specs.push({
+      return {
         kind: "sensor",
         subject: sensor.name,
-        name:
-          kindOfProgram(run) === "sensor"
-            ? run.slice(PREFIXES.sensor.length)
-            : sensor.name,
-        program,
-        command: sensor.command,
+        name: sensor.name,
+        program: sensor.manifest[0] as string,
+        command: sensorCommand(sensor.command, settings),
         manifest: sensor.manifest,
-        settings: settingsOf(sensor.command, sensor.manifest),
-        installLine: install[program] ?? null,
-      });
-    }
-  }
+        settings,
+        installLine: null,
+      };
+    },
+  );
+  const describer = registrations.entries().describer;
 
-  const program = config.describer?.command[0];
-
-  if (program !== undefined && kindOfProgram(program) === "describer") {
+  if (describer !== null) {
     specs.push({
       kind: "describer",
       subject: "describer",
-      name: program.slice(PREFIXES.describer.length),
-      program,
-      command: config.describer?.command ?? [program],
+      name: describer.name,
+      program: describer.command[0] as string,
+      command: [...describer.command, ...DESCRIBER_RUN_WORDS],
+      manifest: describer.manifest,
       settings: null,
-      installLine: install[program] ?? null,
+      installLine: null,
     });
   }
 
   return specs;
 }
 
+function registeredFrom(
+  registrations: PluginRegistrations,
+  record: Record<string, unknown>,
+): RegisteredPlugins {
+  const specs = specsOf(registrations, record);
+
+  return {
+    specs,
+    named: stringMap(record.scanners),
+    install: {},
+    sensors: specs
+      .filter((one) => one.kind === "sensor")
+      .map((one) => one.name),
+    describer: specs.some((one) => one.kind === "describer"),
+  };
+}
+
 export function readConfigArea(
   repository: RepositoryChecks,
+  registrations: PluginRegistrations,
   root: string,
   named: boolean,
 ): ConfigReading {
@@ -147,7 +146,7 @@ export function readConfigArea(
   const read = repository.configDocument(root);
 
   if (read.kind === "absent") {
-    return { problems: [], registered: NONE };
+    return { problems: [], registered: registeredFrom(registrations, {}) };
   }
 
   if (read.kind === "unparseable") {
@@ -276,36 +275,6 @@ export function readConfigArea(
   }
 
   const record = (cleaned ?? {}) as Record<string, unknown>;
-  const install = stringMap(record.install);
-  const expanded = expandedConfigOf(cleaned) as ExpandedConfig;
 
-  for (const sensor of registeredSensors(expanded)) {
-    if (
-      sensor.manifest === undefined &&
-      kindOfProgram(sensor.command[0] as string) === "sensor"
-    ) {
-      const fix = manifestFix(sensor.name, sensor.command)
-        .split(" && ")
-        .map((command) => withRepository(target, command))
-        .join(" && ");
-
-      problems.push({
-        code: "sensor-manifest-missing",
-        subject: sensor.name,
-        line: `sensors.${sensor.name} names no manifest command, so it declares nothing (no suites, no scope, no check)`,
-        fix: commandFix(fix),
-      });
-    }
-  }
-
-  return {
-    problems,
-    registered: {
-      specs: specsOf(expanded, install),
-      named: stringMap(record.scanners),
-      install,
-      sensors: registeredSensors(expanded).map((one) => one.name),
-      describer: record.describer !== undefined,
-    },
-  };
+  return { problems, registered: registeredFrom(registrations, record) };
 }

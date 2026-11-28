@@ -526,7 +526,7 @@ describe("recognizer serve: starting a scan, in process", () => {
 
 describe("recognizer serve: sensor refusals", () => {
   it("reports a refused sensor as an invalid request", async () => {
-    const { root, repository } = typescriptScenario();
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
     const started = await root.call(
       "scan.start",
       startOf(repository, { analysis: false, sense: ["ghost"] }),
@@ -1002,17 +1002,20 @@ describe("the service built in process", () => {
   });
 
   it("a_scan_naming_two_sensors_with_one_program_missing_is_refused_naming_the_missing_one", async () => {
+    const mine = sensorProgram("mine");
     const root = serveRoot({
-      programs: { "recognizer-sense-crap": sensorProgram("crap") },
+      programs: {
+        "recognizer-sense-crap": sensorProgram("crap"),
+        "recognizer-sense-mine": (call) =>
+          call.args[0] === "--version"
+            ? { started: false, status: null, stdout: "", stderr: "" }
+            : mine(call),
+      },
     });
     const repository = "/repo";
 
     root.io.files.writeFile(`${repository}/a.ts`, "one");
     root.io.files.writeFile(`${repository}/.gitignore`, ".recognizer/cache/\n");
-    root.io.files.writeFile(
-      `${repository}/.recognizer/config.yaml`,
-      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mine:\n    command: [recognizer-sense-mine, run]\n    manifest: [recognizer-sense-mine, manifest]\n",
-    );
     root.repositories.commitAll(repository);
 
     const started = await root.call("scan.start", {
@@ -1030,11 +1033,11 @@ describe("the service built in process", () => {
     expect(outcome.gaps).toEqual([
       {
         id: "sensors:missing:mine",
-        line: "recognizer-sense-mine is not installed",
+        line: "/fake-bin/recognizer-sense-mine is not installed",
         needs: ["mine"],
       },
     ]);
-    expect(ran).toContain("recognizer-sense-crap manifest");
+    expect(ran).toContain("/fake-bin/recognizer-sense-crap manifest");
     expect(ran.filter((call) => call.endsWith(" run"))).toEqual([]);
 
     await root.close();

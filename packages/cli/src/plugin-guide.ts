@@ -100,7 +100,7 @@ function installing(): string[] {
     "7. Installing and registering",
     "  - Installed means an executable on PATH named recognizer-scan-<name>, recognizer-sense-<name> or recognizer-describe-<name> whose manifest answers. `recognizer plugins` lists every installed plugin with its kind, name, version, protocol, whether that protocol is in range, and what uses it.",
     "  - Scanners are chosen by the languages a repository holds: each language goes to the installed scanner whose manifest claims it. When two installed scanners claim a language, the repository's config names one with `recognizer config scanners.<language> <name>`; it is never guessed.",
-    "  - Sensors and describers run in a repository only when its committed config registers them. `recognizer plugin add <name>` registers one and copies its install line into the config, so a teammate who lacks the plugin is told by doctor exactly how to install it.",
+    "  - Every registered sensor runs for every repository, and the newest registered describer is the one in effect. `recognizer plugin register <program|path>` registers one, and its manifest's install line is what doctor shows a teammate who lacks the plugin.",
     "  - Recognizer installs nothing. Doctor and the app name a missing plugin and quote its install line.",
     "  - Third-party plugins are distributed however their authors choose. Recognizer needs only an executable on PATH.",
   );

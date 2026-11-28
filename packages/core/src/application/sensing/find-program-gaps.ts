@@ -1,5 +1,4 @@
 import { type Gap, installFix } from "../../domain/gap.js";
-import { sensorNameOf } from "../plugins/installed-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 
 export interface ProgramGapsInput {
@@ -20,16 +19,13 @@ export function findProgramGaps(
 
     const runs = sensor.command[0] ?? program;
     const result = ports.sensors.probe(runs, ["--version"]);
-    const strict = sensorNameOf([program]) !== undefined;
-    const fine = strict
-      ? result.started && result.status === 0
-      : result.started;
+    const fine = result.started;
 
     return fine
       ? []
       : [
           {
-            id: `sensors:missing:${sensorNameOf([program]) ?? program}`,
+            id: `sensors:missing:${sensor.name}`,
             line: `${program} is not installed`,
             needs: [sensor.name],
             fix: installFix(input.install, program),

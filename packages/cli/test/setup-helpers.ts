@@ -31,7 +31,7 @@ function shim(directory: string, program: string, manifest: unknown): void {
 
   writeFileSync(
     path,
-    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${JSON.stringify(manifest)}\nEOF\nfi\nexit 0\n`,
+    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${JSON.stringify(manifest)}\nEOF\nfi\nif [ "$1" = "check" ]; then\necho '{"gaps":[]}'\nfi\nexit 0\n`,
   );
   chmodSync(path, 0o755);
   registerShim(path);

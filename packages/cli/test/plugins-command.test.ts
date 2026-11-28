@@ -10,6 +10,7 @@ import {
   tempDirectory,
   writeShim,
 } from "./plugin-path.js";
+import { registerWords } from "./plugin-registry-shim.js";
 
 interface Out {
   code: number;
@@ -107,7 +108,7 @@ describe("recognizer plugins", () => {
     mkdirSync(join(repo, ".recognizer"));
     writeFileSync(
       join(repo, ".recognizer", "config.yaml"),
-      "sensors:\n  s:\n    command: [recognizer-sense-s, run]\ndescriber:\n  command: [recognizer-describe-d, run]\n  version: v1\n",
+      "scanners:\n  python: python\n",
     );
 
     const { code, out } = await plugins([bin], [repo]);
@@ -138,8 +139,9 @@ describe("recognizer plugins", () => {
     mkdirSync(join(repo, ".recognizer"));
     writeFileSync(
       join(repo, ".recognizer", "config.yaml"),
-      `sensors:\n  tally:\n    command: [${shim}, run]\n    manifest: [${shim}, manifest]\n  tally-again:\n    command: [${shim}, run, again]\n    manifest: [${shim}, manifest]\n`,
+      "scanners:\n  python: python\n",
     );
+    registerWords(bin, "sensor", "tally", [shim]);
 
     const { code, out } = await plugins([bin], [repo]);
     const rows = out.trimEnd().split("\n");

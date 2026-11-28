@@ -9,13 +9,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { undeclaredSensors } from "@recognizer/core";
+import { registrationFileName } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { capture, REPO } from "./helpers.js";
 import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
+import { REGISTRY_FOLDER } from "./registered-plugins.js";
 import {
   type Fake,
   type FakeOptions,
@@ -28,17 +29,14 @@ import {
   ROOT,
   scannerManifestText,
 } from "./scan-helpers.js";
+import { sensorManifest } from "./support/sensor-program.js";
 
 const COMMIT = "abc123";
 const NOT_MEASURED =
   "duplication not measured since the last scan: run recognizer scan\n" +
   "complexity not measured since the last scan: run recognizer scan\n";
-const FAKE_NOTICE = `${
-  undeclaredSensors(
-    [{ name: "fake-sensor", command: ["fake-sensor"] }],
-    false,
-  )[0]?.line
-}\n`;
+const SENSE_FAKE = "recognizer-sense-fake-sensor";
+const FAKE_REGISTRATION = `${REGISTRY_FOLDER}/${registrationFileName("sensor", "fake-sensor")}`;
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -72,20 +70,47 @@ function fakeDocument(changes: Record<string, unknown> = {}) {
   });
 }
 
-function sensor(content: string | null, status = 0): Program {
-  return (args, files) => {
+function outputOf(args: string[]): string {
+  return args[args.indexOf("--output") + 1] as string;
+}
+
+function program(name: string, run: Program): Program {
+  return (args, files) =>
+    args[0] === "manifest"
+      ? { stdout: sensorManifest(name) }
+      : run(args, files);
+}
+
+function sensor(content: string | null, status = 0, name = "fake-sensor") {
+  return program(name, (args, files) => {
     if (content !== null) {
-      files.set(args[args.length - 1] as string, content);
+      files.set(outputOf(args), content);
     }
 
     return status === 0 ? undefined : { status, stderr: "broke" };
-  };
+  });
 }
 
-function setup(yaml: string | null, options: FakeOptions = {}): Fake {
+function setup(given: string | null, options: FakeOptions = {}): Fake {
+  const registered = given?.startsWith(REGISTER) ?? false;
+  const yaml = registered
+    ? given?.slice(REGISTER.length) || null
+    : (given as string | null);
+  const programs = {
+    ...(registered ? { [SENSE_FAKE]: sensor(null) } : {}),
+    ...options.programs,
+  };
+
   return fakeIo({
     commit: COMMIT,
     ...options,
+    programs,
+    onPath: [
+      ...(options.onPath ?? []),
+      ...Object.keys(programs).filter((name) =>
+        name.startsWith("recognizer-sense-"),
+      ),
+    ],
     scanners: { [PYTHON]: {}, ...options.scanners },
     files: {
       [`${ROOT}/shop/a.py`]: "",
@@ -101,8 +126,7 @@ function setup(yaml: string | null, options: FakeOptions = {}): Fake {
   });
 }
 
-const REGISTER =
-  'sensors:\n  fake-sensor:\n    command: [fake-sensor, "{commit}", "{output}"]\n';
+const REGISTER = "register-fake-sensor\n";
 
 async function check(fake: Fake, ...argv: string[]) {
   const code = await run(["check", "--repository", ROOT, ...argv], fake.io);
@@ -139,7 +163,7 @@ function senseReport(out: string) {
 describe("scan --sense running a registered sensor", () => {
   it("writes the sensor's findings file and check then puts its violation through the baseline", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument()) },
     });
 
     const sensed = await sense(fake);
@@ -172,7 +196,7 @@ describe("scan --sense running a registered sensor", () => {
 
   it("prints the outcome as JSON", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument()) },
     });
     const report = senseReport((await sense(fake, "all", "--json")).out);
 
@@ -183,15 +207,20 @@ describe("scan --sense running a registered sensor", () => {
   });
 
   it("runs only the named sensors and refuses an unknown name with the registered ones", async () => {
-    const two = `${REGISTER}  other:\n    command: [other-sensor, "{output}"]\n`;
-    const fake = setup(two, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+    const fake = setup(REGISTER, {
+      programs: {
+        [SENSE_FAKE]: sensor(fakeDocument()),
+        "recognizer-sense-other": sensor(null, 0, "other"),
+      },
     });
 
     expect((await sense(fake, "fake-sensor")).code).toBe(0);
-    expect(fake.calls.some((call) => call.command === "other-sensor")).toBe(
-      false,
-    );
+    expect(
+      fake.calls.some(
+        (call) =>
+          call.command === "recognizer-sense-other" && call.args[0] === "run",
+      ),
+    ).toBe(false);
 
     const refused = await sense(fake, "nope");
 
@@ -232,7 +261,7 @@ describe("scan --sense running a registered sensor", () => {
     "reports a sensor that %s by name, keeps the previous file and exits 1",
     async (_, program) => {
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": program },
+        programs: { [SENSE_FAKE]: program },
         files: { [FAKE]: fakeDocument() },
       });
       const { code, err, out } = await sense(fake, "all", "--json");
@@ -252,7 +281,7 @@ describe("scan --sense running a registered sensor", () => {
 
   it("promotes the checkpoint of a sensor that fails after writing one", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(PARTIAL, 1) },
+      programs: { [SENSE_FAKE]: sensor(PARTIAL, 1) },
       files: { [FAKE]: fakeDocument() },
     });
     const { code, err } = await sense(fake, "all", "--json");
@@ -265,7 +294,7 @@ describe("scan --sense running a registered sensor", () => {
 
   it("leaves no output when a sensor fails before any checkpoint and had no earlier file", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(null, 1) },
+      programs: { [SENSE_FAKE]: sensor(null, 1) },
     });
     const { code } = await sense(fake, "all", "--json");
 
@@ -275,7 +304,7 @@ describe("scan --sense running a registered sensor", () => {
 
   it("promotes a leftover checkpoint for this commit before the run and removes one for another commit", async () => {
     const mine = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(null, 1) },
+      programs: { [SENSE_FAKE]: sensor(null, 1) },
       files: { [`${FAKE}.tmp`]: PARTIAL },
     });
 
@@ -284,7 +313,7 @@ describe("scan --sense running a registered sensor", () => {
     expect(mine.files.get(FAKE)).toBe(PARTIAL);
 
     const other = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(null, 1) },
+      programs: { [SENSE_FAKE]: sensor(null, 1) },
       files: {
         [FAKE]: fakeDocument(),
         [`${FAKE}.tmp`]: fakeDocument({
@@ -311,7 +340,7 @@ describe("scan --sense running a registered sensor", () => {
 
     it("never replaces a complete output that measured more", async () => {
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: checkpoint(0) },
       });
 
@@ -322,14 +351,14 @@ describe("scan --sense running a registered sensor", () => {
     });
 
     it("keeps the complete output when a stopped run's pending checkpoint measured less", async () => {
-      const stopped: Program = (args, files) => {
-        files.set(args[args.length - 1] as string, checkpoint(0));
+      const stopped = program("fake-sensor", (args, files) => {
+        files.set(outputOf(args), checkpoint(0));
         stopEverything();
 
         return { status: 1, stderr: "killed" };
-      };
+      });
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": stopped },
+        programs: { [SENSE_FAKE]: stopped },
         files: { [FAKE]: COUNTED },
       });
 
@@ -340,13 +369,13 @@ describe("scan --sense running a registered sensor", () => {
     });
 
     it("keeps the complete output when a timed-out run's checkpoint measured less", async () => {
-      const timedOut: Program = (args, files) => {
-        files.set(args[args.length - 1] as string, checkpoint(0));
+      const timedOut = program("fake-sensor", (args, files) => {
+        files.set(outputOf(args), checkpoint(0));
 
         return { status: 1, stderr: "slow", timedOut: true };
-      };
+      });
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": timedOut },
+        programs: { [SENSE_FAKE]: timedOut },
         files: { [FAKE]: COUNTED },
       });
 
@@ -359,7 +388,7 @@ describe("scan --sense running a registered sensor", () => {
     it("promotes a checkpoint that measured more", async () => {
       const incoming = checkpoint(11);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: incoming },
       });
 
@@ -371,7 +400,7 @@ describe("scan --sense running a registered sensor", () => {
     it("promotes a checkpoint that measured exactly as many", async () => {
       const incoming = checkpoint(10);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: COUNTED, [`${FAKE}.tmp`]: incoming },
       });
 
@@ -383,7 +412,7 @@ describe("scan --sense running a registered sensor", () => {
     it("promotes a checkpoint over a complete output of unknown count", async () => {
       const incoming = checkpoint(0);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: fakeDocument(), [`${FAKE}.tmp`]: incoming },
       });
 
@@ -396,7 +425,7 @@ describe("scan --sense running a registered sensor", () => {
       const legacy = read("schema/findings-examples/valid/mutation.json");
       const incoming = checkpoint(0);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: legacy, [`${FAKE}.tmp`]: incoming },
       });
 
@@ -408,7 +437,7 @@ describe("scan --sense running a registered sensor", () => {
     it("promotes a checkpoint over an output that is itself partial", async () => {
       const incoming = checkpoint(0);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: {
           [FAKE]: fakeDocument({ partial: { measured: 5, total: 12 } }),
           [`${FAKE}.tmp`]: incoming,
@@ -426,7 +455,7 @@ describe("scan --sense running a registered sensor", () => {
         counts: { measured: 10, total: 10 },
       });
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: { [FAKE]: earlier, [`${FAKE}.tmp`]: checkpoint(0) },
       });
 
@@ -439,7 +468,7 @@ describe("scan --sense running a registered sensor", () => {
     it("promotes a checkpoint over a complete output from another sensor", async () => {
       const incoming = checkpoint(0);
       const fake = setup(REGISTER, {
-        programs: { "fake-sensor": sensor(null, 1) },
+        programs: { [SENSE_FAKE]: sensor(null, 1) },
         files: {
           [FAKE]: fakeDocument({
             sensor: { name: "other-sensor", version: "1" },
@@ -456,13 +485,13 @@ describe("scan --sense running a registered sensor", () => {
   });
 
   it("promotes the checkpoint of a sensor that times out", async () => {
-    const timedOut: Program = (args, files) => {
-      files.set(args[args.length - 1] as string, PARTIAL);
+    const timedOut = program("fake-sensor", (args, files) => {
+      files.set(outputOf(args), PARTIAL);
 
       return { status: 1, stderr: "slow", timedOut: true };
-    };
+    });
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": timedOut },
+      programs: { [SENSE_FAKE]: timedOut },
       files: { [FAKE]: fakeDocument() },
     });
     const { code } = await sense(fake, "all", "--json");
@@ -475,7 +504,7 @@ describe("scan --sense running a registered sensor", () => {
   it("removes a complete document from a failing sensor and keeps the previous output", async () => {
     const complete = fakeDocument({ findings: [] });
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(complete, 1) },
+      programs: { [SENSE_FAKE]: sensor(complete, 1) },
       files: { [FAKE]: fakeDocument() },
     });
     const { code } = await sense(fake, "all", "--json");
@@ -487,7 +516,7 @@ describe("scan --sense running a registered sensor", () => {
 
   it("renames a successful run's document over the previous output", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument({ modified: false })) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument({ modified: false })) },
       files: { [FAKE]: PARTIAL },
     });
     const { code } = await sense(fake, "all", "--json");
@@ -500,14 +529,14 @@ describe("scan --sense running a registered sensor", () => {
 
   it("promotes a running sensor's checkpoint as soon as everything is stopped", async () => {
     let afterStop: string | undefined;
-    const stopped: Program = (args, files) => {
-      files.set(args[args.length - 1] as string, PARTIAL);
+    const stopped = program("fake-sensor", (args, files) => {
+      files.set(outputOf(args), PARTIAL);
       stopEverything();
       afterStop = files.get(FAKE);
 
       return { status: 1, stderr: "killed" };
-    };
-    const fake = setup(REGISTER, { programs: { "fake-sensor": stopped } });
+    });
+    const fake = setup(REGISTER, { programs: { [SENSE_FAKE]: stopped } });
 
     await sense(fake, "all", "--json");
 
@@ -515,23 +544,27 @@ describe("scan --sense running a registered sensor", () => {
   });
 
   it("fails the run for a missing program", async () => {
-    const { code, err } = await sense(setup(REGISTER));
+    const { code, err } = await sense(setup(null, { onPath: [SENSE_FAKE] }));
 
     expect(code).toBe(1);
-    expect(err).toContain("failed fake-sensor:");
+    expect(err).toContain(
+      "fake-sensor: /fakebin/recognizer-sense-fake-sensor manifest could not be started",
+    );
   });
 });
 
 describe("check reading registered sensors", () => {
   it("never runs a registered sensor and reports one with no file as missing", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument()) },
     });
     const report = JSON.parse((await check(fake, "--json")).out);
 
-    expect(fake.calls.some((call) => call.command === "fake-sensor")).toBe(
-      false,
-    );
+    expect(
+      fake.calls.some(
+        (call) => call.command === SENSE_FAKE && call.args[0] === "run",
+      ),
+    ).toBe(false);
     expect(fake.files.has(FAKE)).toBe(false);
     expect(report.sensors).toContainEqual({
       name: "fake-sensor",
@@ -541,7 +574,7 @@ describe("check reading registered sensors", () => {
   });
 
   it("accepts the sensor's violation once the baseline lists it by id", async () => {
-    const yaml = `${REGISTER}  structure:\n    warnings:\n      cycle: true\n`;
+    const yaml = `${REGISTER}sensors:\n  structure:\n    warnings:\n      cycle: true\n`;
     const baseline = JSON.stringify({
       schema_version: 1,
       violations: [{ id: "fake-violation:shop/main.py" }],
@@ -715,7 +748,7 @@ describe("check judging a registered sensor's findings per module", () => {
     });
     const { err, out } = await check(fake, "--json");
 
-    expect(err).toBe(NOT_MEASURED + FAKE_NOTICE);
+    expect(err).toBe(NOT_MEASURED);
     expect(JSON.parse(out).sensors).toContainEqual({
       name: "fake-sensor",
       status: "ran",
@@ -749,8 +782,10 @@ describe("check judging a registered sensor's findings per module", () => {
 describe("check ratcheting a thresholds violation", () => {
   const THRESHOLDS = `${ROOT}/.recognizer/cache/findings/quality.json`;
   const ID = "thresholds:churn:app/billing.py";
-  const YAML =
-    'sensors:\n  quality:\n    command: [quality, "{commit}", "{output}"]\n';
+  const OPTIONS = {
+    onPath: ["recognizer-sense-quality"],
+    programs: { "recognizer-sense-quality": sensor(null, 0, "quality") },
+  };
 
   function thresholdsDocument() {
     return JSON.stringify({
@@ -782,7 +817,10 @@ describe("check ratcheting a thresholds violation", () => {
     list.map((v) => v.finding_id);
 
   it("reports the violation as new, writes it by id, then reports it baselined", async () => {
-    const fake = setup(YAML, { files: { [THRESHOLDS]: thresholdsDocument() } });
+    const fake = setup(null, {
+      ...OPTIONS,
+      files: { [THRESHOLDS]: thresholdsDocument() },
+    });
     const first = JSON.parse((await check(fake, "--json")).out);
 
     expect(findingIds(first.new)).toContain(ID);
@@ -1094,7 +1132,7 @@ describe("show and modules read the findings files", () => {
 
   it("includes a registered sensor's current findings and never runs it", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument()) },
       files: {
         [FAKE]: fakeDocument({
           findings: [
@@ -1113,9 +1151,11 @@ describe("show and modules read the findings files", () => {
     const { out } = await show(fake);
 
     expect(out).toContain("from the file");
-    expect(fake.calls.some((call) => call.command === "fake-sensor")).toBe(
-      false,
-    );
+    expect(
+      fake.calls.some(
+        (call) => call.command === SENSE_FAKE && call.args[0] === "run",
+      ),
+    ).toBe(false);
   });
 
   it("reports an invalid registered file as invalid", async () => {
@@ -1128,16 +1168,13 @@ describe("show and modules read the findings files", () => {
 describe("a findings file for a sensor no longer registered", () => {
   it("is ignored and kept by check with one stderr line and contributes nothing", async () => {
     const fake = setup(REGISTER, {
-      programs: { "fake-sensor": sensor(fakeDocument()) },
+      programs: { [SENSE_FAKE]: sensor(fakeDocument()) },
     });
 
     await sense(fake);
     expect(fake.files.has(FAKE)).toBe(true);
 
-    fake.files.set(
-      CONFIG,
-      "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
-    );
+    fake.files.delete(FAKE_REGISTRATION);
 
     const { err, out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
@@ -1227,8 +1264,6 @@ describe("a findings file for an installed sensor with no config entry", () => {
 });
 
 describe("scan --sense leaves a running record while it works", () => {
-  const TWO =
-    'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
   const LOG = `${ROOT}/.recognizer/cache/log`;
 
   function saved(fake: Fake) {
@@ -1241,23 +1276,23 @@ describe("scan --sense leaves a running record while it works", () => {
 
   it("holds one entry after the first child returns and a running outcome when the second throws", async () => {
     let snapshot: unknown[] = [];
-    const fake = setup(TWO, {
+    const fake = setup(null, {
       programs: {
-        "first-sensor": (args, files) => {
+        "recognizer-sense-first": program("first", (args, files) => {
           files.set(
-            args[args.length - 1] as string,
+            outputOf(args),
             fakeDocument({ sensor: { name: "first", version: "1" } }),
           );
 
           return undefined;
-        },
-        "second-sensor": (_args, files) => {
+        }),
+        "recognizer-sense-second": program("second", (_args, files) => {
           snapshot = [...files.keys()]
             .filter((key) => key.startsWith(`${LOG}/`))
             .map((key) => JSON.parse(files.get(key) as string));
 
           throw new Error("killed");
-        },
+        }),
       },
     });
 
@@ -1293,13 +1328,13 @@ describe("scan --sense leaves a running record while it works", () => {
     let atStart: unknown[] = [];
     const fake = setup(REGISTER, {
       programs: {
-        "fake-sensor": (_args, files) => {
+        [SENSE_FAKE]: program("fake-sensor", (_args, files) => {
           atStart = [...files.keys()]
             .filter((key) => key.startsWith(`${LOG}/`))
             .map((key) => JSON.parse(files.get(key) as string));
 
           return undefined;
-        },
+        }),
       },
     });
 
@@ -1359,10 +1394,6 @@ describe("scan --sense running a registered sensor as a real process", () => {
       join(root, ".recognizer/cache/scan.python.json"),
       JSON.stringify(onDisk(checkScan, root, git("rev-parse", "HEAD").trim())),
     );
-    writeFileSync(
-      join(root, ".recognizer/config.yaml"),
-      `sensors:\n  fake-sensor:\n    command: ["node", ${JSON.stringify(script)}, "{repository}", "{commit}", "{output}"]\n`,
-    );
 
     const sensed = capture();
     const probes = makeTempDir("recognizer-scanner-");
@@ -1372,6 +1403,12 @@ describe("scan --sense running a registered sensor as a real process", () => {
     );
     chmodSync(join(probes, "recognizer-scan-python"), 0o755);
     registerShim(join(probes, "recognizer-scan-python"));
+    writeFileSync(
+      join(probes, "recognizer-sense-fake-sensor"),
+      `#!/bin/sh\ncase "$1" in\nmanifest)\ncat <<'EOF'\n${sensorManifest("fake-sensor")}\nEOF\n;;\n--version)\necho 1\n;;\ncheck)\necho '{"gaps":[]}'\n;;\n*)\nexec node ${JSON.stringify(script)} "$3" "$5" "$7"\n;;\nesac\n`,
+    );
+    chmodSync(join(probes, "recognizer-sense-fake-sensor"), 0o755);
+    registerShim(join(probes, "recognizer-sense-fake-sensor"));
 
     const release = useRegisteredShims(probes);
     const out = capture();
@@ -1387,12 +1424,8 @@ describe("scan --sense running a registered sensor as a real process", () => {
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 
-    expect(sensed.err()).toBe(
-      `${undeclaredSensors([{ name: "fake-sensor", command: ["node"] }], false)[0]?.line}\nduplication: 4 files parsed, 0 reused\n`,
-    );
-    expect(out.err()).toBe(
-      `${undeclaredSensors([{ name: "fake-sensor", command: ["node"] }], false)[0]?.line}\n`,
-    );
+    expect(sensed.err()).toBe("duplication: 4 files parsed, 0 reused\n");
+    expect(out.err()).toBe("");
     expect(document.commit).toBe(git("rev-parse", "HEAD").trim());
     expect(JSON.parse(out.out()).violations).toHaveLength(1);
     expect(code).toBe(1);
@@ -1523,42 +1556,13 @@ describe("a report in the findings folder", () => {
   });
 });
 
-describe("check of a registered sensor with no manifest", () => {
+describe("check of a registered sensor with a manifest", () => {
   const SUITES =
     "tests:\n  - name: api\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n";
-  const WITH_MANIFEST = `${REGISTER}    manifest: [fake-sensor, manifest]\n`;
-
-  it("reports it partial, says the notice and prints the text line, leaving the exit code alone", async () => {
-    const plain = setup(REGISTER, { files: { [FAKE]: fakeDocument() } });
-    const withSuites = setup(`${SUITES}${REGISTER}`, {
-      files: { [FAKE]: fakeDocument() },
-    });
-    const baseline = await check(plain);
-    const fake = await check(withSuites, "--json");
-    const text = await check(
-      setup(`${SUITES}${REGISTER}`, { files: { [FAKE]: fakeDocument() } }),
-    );
-    const report = JSON.parse(fake.out);
-    const status = report.sensors.find(
-      (one: { name: string }) => one.name === "fake-sensor",
-    );
-
-    expect(status).toMatchObject({
-      status: "partial",
-      not_measured: ["suites"],
-    });
-    expect(fake.err).toContain(
-      "fake-sensor declares nothing until its manifest",
-    );
-    expect(text.out).toContain(
-      "sensor fake-sensor: partial (not measured: suites)",
-    );
-    expect(fake.code).toBe(baseline.code);
-  });
 
   it("keeps it ran and says nothing when it names a manifest", async () => {
     const fake = await check(
-      setup(`${SUITES}${WITH_MANIFEST}`, { files: { [FAKE]: fakeDocument() } }),
+      setup(`${REGISTER}${SUITES}`, { files: { [FAKE]: fakeDocument() } }),
       "--json",
     );
     const status = JSON.parse(fake.out).sensors.find(

@@ -15,18 +15,16 @@ export interface DescriberBuild {
 export interface ConfigRepository {
   scannerSetup(root: string): {
     scanners: Record<string, string>;
-    install: Record<string, string>;
     describerBuild: DescriberBuild | null;
   };
   run(root: string, skipRetired: boolean): ConfigDocument | null;
   analysis(root: string, skipRetired: boolean): ConfigDocument | null;
   readsSensorConfig(): boolean;
   structureSettings(root: string): StructureSettings | "off";
-  sensorNames(root: string): string[];
-  sensorNamesDespiteErrors(root: string): string[];
-  registeredSensors(
+  sensorSettings(
     config: ConfigDocument | null,
-  ): { name: string; command: string[]; manifest?: string[] }[];
+    name: string,
+  ): Record<string, unknown>;
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined;
   sensorConfig(root: string): ConfigDocument | null;
   text(root: string): RepositoryText;

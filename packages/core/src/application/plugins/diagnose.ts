@@ -17,16 +17,14 @@ import {
 import { checkSensor } from "./check-sensor.js";
 import { discoverPlugins } from "./discover-plugins.js";
 import {
-  readInstalledSensors,
   readRegisteredSensors,
-  runsTests,
   withRegistered,
   withSuiteSettings,
 } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { NO_RUN_LINE, probeDescriberCheck } from "./probe-describer-check.js";
 import { readConfigArea } from "./read-config-area.js";
-import { readManifest, readManifestCommand } from "./read-manifest.js";
+import { readManifest } from "./read-manifest.js";
 import { readPolicyArea } from "./read-policy-area.js";
 
 type DiagnosePorts = Pick<
@@ -146,13 +144,19 @@ function pluginFact(
     return sensorFact(ports, root, spec, suites);
   }
 
-  const found = ports.programs.find(spec.program);
+  const words = filled(spec.manifest ?? [], root);
+  const [program, ...rest] = words as [string, ...string[]];
+  const run = ports.programs.run(program, rest, {
+    timeoutMs: MANIFEST_TIMEOUT_MS,
+  });
 
-  if (found === null) {
+  if (!run.started) {
     return { ...spec, state: { status: "missing" } };
   }
 
-  const read = readManifest(ports, found);
+  const read = interpretManifest(words.join(" "), run, (value) =>
+    ports.validators.manifest(value),
+  );
 
   if (!read.ok) {
     return { ...spec, state: { status: "unreadable", reason: read.reason } };
@@ -170,47 +174,9 @@ function pluginFact(
       judgement,
       gaps: !wantsCheck
         ? null
-        : describerCheckLines(ports, root, [found, ...spec.command.slice(1)]),
+        : describerCheckLines(ports, root, filled(spec.command, root)),
     },
   };
-}
-
-function testsUnrun(
-  ports: DiagnosePorts,
-  registered: DoctorFacts["registered"],
-  suites: readonly unknown[] | undefined,
-): DoctorFacts["testsUnrun"] {
-  if (suites === undefined || "skipped" in registered) {
-    return [];
-  }
-
-  const installed = withRegistered(
-    readInstalledSensors(ports),
-    readRegisteredSensors(
-      registered.specs
-        .filter((spec) => spec.kind === "sensor")
-        .map((spec) => ({
-          name: spec.subject,
-          command: spec.command,
-          manifest: spec.manifest,
-        })),
-      (words) => readManifestCommand(ports, words),
-    ),
-  );
-
-  const running = registered.specs.some(
-    (spec) => spec.kind === "sensor" && runsTests(spec.command, installed),
-  );
-
-  if (running) {
-    return [];
-  }
-
-  return installed.sensors
-    .filter(
-      (entry) => entry.runs_tests && !registered.sensors.includes(entry.name),
-    )
-    .map((entry) => ({ name: entry.name, display: entry.display }));
 }
 
 function unregisteredPrograms(
@@ -261,7 +227,12 @@ export function diagnose(
 
   const scanners = discoverPlugins(ports, ["scanner"]).plugins;
   const languages = ports.repository.languages(root, scanners);
-  const config = readConfigArea(ports.repository, root, named);
+  const config = readConfigArea(
+    ports.repository,
+    ports.registrations,
+    root,
+    named,
+  );
   const facts: DoctorFacts = {
     repository: root,
     configProblems: config.problems,
@@ -274,11 +245,6 @@ export function diagnose(
 
       return specs.map((spec) => pluginFact(ports, root, spec, suites));
     },
-    testsUnrun: testsUnrun(
-      ports,
-      config.registered,
-      ports.repository.suites(root),
-    ),
     unregisteredPrograms: unregisteredPrograms(ports),
     protocol: ports.validators.facts,
   };

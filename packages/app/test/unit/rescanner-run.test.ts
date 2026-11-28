@@ -128,7 +128,9 @@ async function begin(scripts: SensorsScript, options: Begin = {}) {
     programs: {
       ...programs,
       "recognizer-scan-typescript": scannerIn(mode),
-      ...(describer === undefined ? {} : { describer }),
+      ...(describer === undefined
+        ? {}
+        : { "recognizer-describe-fake": describer }),
       ...override,
     },
     describing: { model: "m", batchSize: 3, confirmAboveUsd: 0 },

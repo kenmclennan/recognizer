@@ -1,9 +1,6 @@
 import type { DescriberBuild } from "../../domain/config-repository.js";
 import { type Gap, installFix, outside } from "../../domain/gap.js";
-import {
-  isReferenceDescriber,
-  noneRegistered,
-} from "../plugins/installed-sensors.js";
+import { noneRegistered } from "../plugins/installed-sensors.js";
 import {
   NO_RUN_LINE,
   probeDescriberCheck,
@@ -18,13 +15,6 @@ export interface FindDescriberGapsInput {
   located: LocatedDescriber;
   install: Record<string, string>;
   build: DescriberBuild | null;
-}
-
-function isReference(
-  command: readonly string[],
-  build: DescriberBuild | null,
-): boolean {
-  return isReferenceDescriber(command) || build !== null;
 }
 
 function argumentsGap(
@@ -79,6 +69,19 @@ export function findDescriberGaps(
     return [];
   }
 
+  const { unreadable } = input.located;
+
+  if (unreadable !== undefined) {
+    return [
+      {
+        id: "describe:unreadable",
+        line: "the describer's manifest cannot be read",
+        needs: ["describe"],
+        fix: outside(unreadable),
+      },
+    ];
+  }
+
   const describer = input.located.describer;
 
   if (describer === null) {
@@ -92,23 +95,7 @@ export function findDescriberGaps(
     ];
   }
 
-  if (isReference(describer.command, input.build)) {
-    const gap = argumentsGap(ports, input, describer);
+  const gap = argumentsGap(ports, input, describer);
 
-    return gap === null ? [] : [gap];
-  }
-
-  const program = describer.command[0] as string;
-  const probe = ports.describer.probe(program, ["--version"], input.root);
-
-  return probe.started
-    ? []
-    : [
-        {
-          id: "describe:program",
-          line: `the describer program ${program} does not start`,
-          needs: ["describe"],
-          fix: installFix(input.install, program),
-        },
-      ];
+  return gap === null ? [] : [gap];
 }

@@ -8,6 +8,7 @@ import {
   expandShortForms,
   registeredSensors,
   retiredSensorsIn,
+  sensorProgram,
   withMovedDuplicationSensor,
   withoutEmptySections,
 } from "@recognizer/core";
@@ -79,6 +80,44 @@ export interface Config {
   install?: Record<string, string>;
   sensors?: Record<string, SensorEntry>;
   tests?: TestSuite[];
+}
+
+function settingsInCommand(command: unknown[]): Record<string, unknown> {
+  const at = command.indexOf("--settings");
+  const text = at === -1 ? undefined : command[at + 1];
+
+  if (typeof text !== "string") {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function sensorSettingsOf(
+  config: { sensors?: Record<string, unknown> } | null,
+  name: string,
+): Record<string, unknown> {
+  const entry = config?.sensors?.[name];
+
+  if (!isPlainObject(entry)) {
+    return {};
+  }
+
+  if (Array.isArray(entry.command)) {
+    return entry.command[0] === sensorProgram(name)
+      ? settingsInCommand(entry.command)
+      : {};
+  }
+
+  const { manifest: _manifest, ...settings } = entry;
+
+  return settings;
 }
 
 export function registeredSensorSettings(

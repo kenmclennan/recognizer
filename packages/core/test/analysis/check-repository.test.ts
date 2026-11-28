@@ -94,7 +94,7 @@ describe("checkRepository", () => {
       inputs: { "a/x.py": "other" },
     };
 
-    fakes.config.sensors.push("crap", "mutation");
+    fakes.catalog.named.push("crap", "mutation");
     fakes.findings.stored.set("crap", {
       name: "crap",
       status: "read",
@@ -137,7 +137,7 @@ describe("checkRepository", () => {
       settings: {},
     };
 
-    fakes.config.sensors.push("crap", "mutation");
+    fakes.catalog.named.push("crap", "mutation");
     fakes.baseline.baselines.set(BASELINE, [{ id: "crap-violation:a/x.py" }]);
     fakes.findings.stored.set("crap", {
       name: "crap",
@@ -218,7 +218,7 @@ describe("checkRepository warnings", () => {
     };
 
     fakes.config.settings = DEFAULT_STRUCTURE_SETTINGS;
-    fakes.config.sensors.push("crap");
+    fakes.catalog.named.push("crap");
     fakes.findings.stored.set("crap", {
       name: "crap",
       status: "read",
@@ -370,10 +370,8 @@ describe("checkRepository unknown files", () => {
   });
 });
 
-describe("checkRepository sensors with no manifest", () => {
-  const SENSE = ["recognizer", "sense", ""].join("-");
-
-  function withSensor(options: { manifest: boolean; suites: boolean }) {
+describe("checkRepository registered sensors", () => {
+  function withSensor(options: { suites: boolean }) {
     const { fakes, say, said } = worldOf();
     const document: SensorFindings = {
       sensor: { name: "mine", version: "1" },
@@ -388,9 +386,8 @@ describe("checkRepository sensors with no manifest", () => {
       name: "mine",
       runsTests: true,
       held: false,
-      ...(options.manifest ? {} : { withoutManifest: true }),
     });
-    fakes.config.sensors.push("mine");
+    fakes.catalog.named.push("mine");
 
     if (options.suites) {
       fakes.sensors.suites.push("unit");
@@ -413,39 +410,11 @@ describe("checkRepository sensors with no manifest", () => {
     return { report, status, said };
   }
 
-  it("marks a ran sensor with no manifest and configured suites as partial", () => {
-    const { report, status, said } = withSensor({
-      manifest: false,
-      suites: true,
-    });
-
-    expect(status).toMatchObject({
-      name: "mine",
-      status: "partial",
-      not_measured: ["suites"],
-      reason: "not measured mine: the configured suites were not handed to it",
-    });
-    expect(said.some((line) => line.startsWith("mine declares nothing"))).toBe(
-      true,
-    );
-    expect(report.exit).toBe(0);
-  });
-
-  it("says the notice but keeps the status when no suites are configured", () => {
-    const { status, said } = withSensor({ manifest: false, suites: false });
-
-    expect(status?.status).toBe("ran");
-    expect(said.some((line) => line.startsWith("mine declares nothing"))).toBe(
-      true,
-    );
-  });
-
-  it("stays ran and silent for a sensor with a manifest", () => {
-    const { status, said } = withSensor({ manifest: true, suites: true });
+  it("stays ran and silent for a registered sensor with configured suites", () => {
+    const { status, said } = withSensor({ suites: true });
 
     expect(status?.status).toBe("ran");
     expect(said.some((line) => line.includes("declares nothing"))).toBe(false);
-    expect(SENSE.length).toBeGreaterThan(0);
   });
 
   it("leaves a missing sensor missing", () => {
@@ -455,9 +424,8 @@ describe("checkRepository sensors with no manifest", () => {
       name: "mine",
       runsTests: true,
       held: false,
-      withoutManifest: true,
     });
-    fakes.config.sensors.push("mine");
+    fakes.catalog.named.push("mine");
     fakes.sensors.suites.push("unit");
 
     const report = checkRepository(

@@ -835,44 +835,21 @@ describe("doctor: sensors", () => {
     ).toBe(true);
   });
 
-  it("gives the recorded install line as the plugin-missing fix", () => {
-    const fake = setup({
-      ...clean,
-      onPath: [],
-      manifestsAnswer: false,
-      config: `${READY_SENSOR}install:\n  recognizer-sense-crap: get crap\n`,
-    });
-    const result = json(fake);
-
-    expect(result.report.areas[3].problems).toMatchObject([
-      {
-        code: "plugin-missing",
-        subject: "crap",
-        fix: { text: "get crap", command: null },
-      },
-    ]);
-  });
-
   it("gives the instruction when no install line is recorded", () => {
-    const result = json(
-      setup({ ...clean, onPath: [], manifestsAnswer: false }),
-    );
-
-    expect(result.report.areas[3].problems[0].fix.text).toBe(
-      "install recognizer-sense-crap: no install line is recorded for it, run recognizer plugin add crap on a machine that has it",
-    );
-  });
-
-  it("gives no problem for a registered command that is not recognizer-sensors", () => {
+    const registered = registeredPlugins([{ kind: "sensor", name: "crap" }]);
     const result = json(
       setup({
         ...clean,
-        config: "sensors:\n  mine:\n    command: [my-tool]\n",
+        onPath: [],
+        manifestsAnswer: false,
+        files: registered.files,
+        env: registered.env,
       }),
     );
 
-    expect(result.status).toBe(0);
-    expect(result.report.areas[3].problems).toEqual([]);
+    expect(result.report.areas[3].problems[0].fix.text).toBe(
+      "install recognizer-sense-crap, or remove its registration with recognizer plugin unregister crap",
+    );
   });
 
   it("gives no problem for a sensor set off", () => {
@@ -1088,77 +1065,8 @@ describe("real content", () => {
 
 describe("doctor: unregistered plugins", () => {
   const ALL = ["recognizer-sense-crap", "recognizer-sense-mutation"];
-  const CRAP =
-    "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n";
   const TESTS =
     "tests:\n  - name: api\n    language: python\n    directory: .\n    command: x\n    coverage:\n      path: c\n      format: lcov\n";
-
-  function problemsOf(result: ReturnType<typeof json>) {
-    return result.report.areas.flatMap(
-      (area: { problems: { code: string; fix: unknown; line: string }[] }) =>
-        area.problems,
-    );
-  }
-
-  it("reports no problem for an installed sensor that is not registered", () => {
-    const result = json(setup({ config: CRAP, onPath: ALL }), ROOT);
-
-    expect(result.status).toBe(0);
-    expect(codes(result.report)).toEqual([]);
-  });
-
-  it("reports each installed tests-running sensor, with its fix, when tests are configured and none is registered", () => {
-    const result = json(setup({ config: TESTS, onPath: ALL }), ROOT);
-    const problems = problemsOf(result);
-
-    expect(result.status).toBe(1);
-    expect(result.report).toMatchObject({
-      ok: false,
-      problems: 2,
-      warnings: 0,
-    });
-    expect(
-      problems.map((one: { fix: { command: string } }) => one.fix.command),
-    ).toEqual(["recognizer plugin add crap", "recognizer plugin add mutation"]);
-    expect(
-      problems.every(
-        (one: { code: string }) => one.code === "unregistered-plugin",
-      ),
-    ).toBe(true);
-  });
-
-  it("title names the subject: unregistered-plugin", () => {
-    const result = json(setup({ config: TESTS, onPath: ALL }), ROOT);
-    const titles = result.report.areas
-      .flatMap((area: { problems: { title: string }[] }) => area.problems)
-      .map((one: { title: string }) => one.title);
-
-    expect(titles).toEqual([
-      "The C.R.A.P. plugin is not registered",
-      "The Mutation plugin is not registered",
-    ]);
-  });
-
-  it("prints the problem lines and the problem count, and exits 1", () => {
-    const result = doctor(setup({ config: TESTS, onPath: ALL }), ROOT);
-    const lines = result.out.trimEnd().split("\n");
-
-    expect(result.status).toBe(1);
-    expect(lines.at(-1)).toBe("2 problems");
-    expect(result.out).toContain(
-      "  mutation is not registered in .recognizer/config.yaml; register it with `recognizer plugin add mutation`.\n    fix: recognizer plugin add mutation\n",
-    );
-  });
-
-  it("clears every problem once one tests-running sensor is registered", () => {
-    const result = doctor(
-      setup({ config: `${TESTS}${CRAP}`, onPath: ALL }),
-      ROOT,
-    );
-
-    expect(result.out).not.toContain("unregistered");
-    expect(result.out).not.toContain("is not registered");
-  });
 
   it("reports nothing when every installed plugin is registered", () => {
     const result = doctor(

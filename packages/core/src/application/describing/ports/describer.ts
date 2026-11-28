@@ -7,6 +7,8 @@ import type { DescriberRef } from "./describer-ref.js";
 
 export interface LocatedDescriber {
   describer: DescriberRef | null;
+  unreadable?: string;
+  install?: string;
 }
 
 export interface EntryTiming {

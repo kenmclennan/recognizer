@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { registrationFileName } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   event,
+  FAKE_REGISTRY,
   FakeFiles,
   FakeRepositories,
   Gate,
@@ -96,10 +98,9 @@ function startPlanned(
   });
 }
 
-function configure(root: ServeRoot, repository: string, sensors: string[]) {
-  root.io.files.writeFile(
-    `${repository}/.recognizer/config.yaml`,
-    `sensors:\n${sensors.map((name) => `  ${name}: {}`).join("\n")}\n`,
+function unregister(root: ServeRoot, name: string) {
+  root.io.files.remove(
+    `${FAKE_REGISTRY}/${registrationFileName("sensor", name)}`,
   );
 }
 
@@ -495,7 +496,7 @@ describe("serve repository state", () => {
     const watch = (await root.call("repository.watch", { repository })).ok;
 
     await untilState(root, watch, (state) => state.revision === 1);
-    configure(root, repository, ["crap"]);
+    unregister(root, "mutation");
 
     const after = await untilState(root, watch, (state) => !hasMutation(state));
 
@@ -589,7 +590,7 @@ describe("serve repository state", () => {
     );
 
     expect(hasMutation(first)).toBe(true);
-    configure(root, repository, ["crap"]);
+    unregister(root, "mutation");
 
     expect(
       await reportedWithin(

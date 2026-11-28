@@ -33,6 +33,6 @@ describe("describer preflight", () => {
     expect(outcome.status).toBe("refused");
     expect(
       outcome.status === "refused" ? outcome.gaps.map((one) => one.id) : [],
-    ).toEqual(["describe:program", "sensors:missing:ruler"]);
+    ).toEqual(["describe:arguments", "sensors:missing:ruler"]);
   });
 });

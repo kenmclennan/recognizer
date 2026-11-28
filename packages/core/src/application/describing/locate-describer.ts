@@ -11,6 +11,10 @@ export function locateDescriber(
 ): LocatedDescriber {
   const located = ports.describer.locate(root);
 
+  if (located.unreadable !== undefined) {
+    throw new InvalidRequest([located.unreadable]);
+  }
+
   if (located.describer === null) {
     throw new InvalidRequest([noneRegistered()]);
   }

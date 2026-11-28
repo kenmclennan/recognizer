@@ -1,7 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, type RunResult, run } from "../src/cli.js";
 import { capture } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
@@ -60,37 +57,6 @@ describe("recognizer sensors", () => {
     expect(JSON.parse(out()).map((e: { name: string }) => e.name)).toEqual([
       "margin",
       "tally",
-    ]);
-  });
-
-  it("lists a sensor registered under a custom command with a manifest beside the installed ones, once, marked registered", () => {
-    const repo = makeTempDir("recognizer-sensors-custom-");
-    const tool = join(repo, "tally-tool");
-
-    mkdirSync(join(repo, ".recognizer"));
-    writeFileSync(
-      join(repo, ".recognizer", "config.yaml"),
-      `sensors:\n  tally:\n    command: [${tool}, run]\n    manifest: [${tool}, manifest]\n  tally-again:\n    command: [${tool}, run, again]\n    manifest: [${tool}, manifest]\n`,
-    );
-
-    const { io, out, err } = answering([], [], ["crap"], (name) => ({
-      ...exampleManifest("crap"),
-      name: name === tool ? "tally" : name,
-    }));
-
-    const code = run(["sensors", "--json", "--repository", repo], io);
-    expect(code).toBe(0);
-    expect(err()).toBe("");
-
-    const entries = JSON.parse(out());
-
-    expect(entries.map((e: { name: string }) => e.name)).toEqual([
-      "crap",
-      "tally",
-    ]);
-    expect(entries.map((e: { registered?: boolean }) => e.registered)).toEqual([
-      undefined,
-      true,
     ]);
   });
 

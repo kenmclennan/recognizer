@@ -4,8 +4,9 @@ import { parseBaseline } from "../adapters/filesystem/baseline-adapter.js";
 import { parsePolicy } from "../adapters/filesystem/policy-translator.js";
 import type { Io } from "../cli.js";
 import { type Config, configFile, policyFile } from "../config.js";
-import { parseConfig, registeredSensorNamesIn } from "../config-parse.js";
+import { parseConfig } from "../config-parse.js";
 import { InputError } from "../errors.js";
+import { registeredNames } from "./refusals.js";
 
 export interface InputsAnswer {
   configText: string | null;
@@ -95,8 +96,7 @@ export function readInputs(io: Io, root: string): InputsAnswer {
     configText,
     config: config.value,
     configProblem: config.problem,
-    registeredSensors:
-      configText === null ? [] : registeredSensorNamesIn(configText),
+    registeredSensors: registeredNames(io, root),
     policy: policy.value,
     policyProblem: policy.problem,
     baseline: baseline.value,

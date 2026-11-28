@@ -6,7 +6,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { exampleManifest } from "./installed-read.js";
-import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
+import { registeredPlugins } from "./registered-plugins.js";
+import { BIN, fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
@@ -127,6 +128,8 @@ describe("recognizer sensors check", () => {
   it("passes the suite names of a --suites file to the plugin", () => {
     const fake = fakeIo({
       files: { [CONFIG]: REGISTERED, "/s.json": '["unit","web"]' },
+      sensorManifests: true,
+      onPath: OFFICIAL_ON_PATH,
       sensorsPreflight: { run: gapsBy({}) },
     });
 
@@ -143,6 +146,8 @@ describe("recognizer sensors check", () => {
   it("exits 2 for a --suites file that is not an array of names", () => {
     const fake = fakeIo({
       files: { [CONFIG]: REGISTERED, "/s.json": '{"unit":1}' },
+      sensorManifests: true,
+      onPath: OFFICIAL_ON_PATH,
       sensorsPreflight: { run: gapsBy({}) },
     });
 
@@ -299,7 +304,7 @@ describe("recognizer sensors check", () => {
 
   it("exits 2 for an unknown name, for no registered sensors with no name, and for check's extra word", () => {
     expect(check(setup("", gapsBy({})), "nope")).toBe(2);
-    expect(check(setup("", gapsBy({})))).toBe(2);
+    expect(check(fakeIo({ sensorsPreflight: { run: gapsBy({}) } }))).toBe(2);
     expect(check(setup(REGISTERED, gapsBy({})), "crap", "extra")).toBe(2);
   });
 
@@ -348,22 +353,9 @@ describe("recognizer sensors check", () => {
       {
         code: "sensors-missing",
         suite: null,
-        line: "recognizer-sense-crap is not installed",
+        line: `${BIN}/recognizer-sense-crap is not installed`,
       },
     ]);
-  });
-
-  it("lists a registered sensor with a custom command as having no readiness check and counts it ready", () => {
-    const fake = setup(
-      `${REGISTERED}  custom:\n    command: [custom-sensor, "{repository}"]\n`,
-      gapsBy({}),
-    );
-
-    expect(check(fake)).toBe(0);
-    expect(fake.out()).toContain("custom: no readiness check\n");
-    expect(fake.calls.some((call) => call.command === "custom-sensor")).toBe(
-      false,
-    );
   });
 
   it("passes --run through with no timeout and gives the call without it the ceiling", () => {
@@ -511,24 +503,19 @@ describe("a custom-command sensor", () => {
     vi.restoreAllMocks();
   });
 
-  const RUN =
-    "[python3, tools/sense.py, run, --repository, '{repository}', --commit, '{commit}', --output, '{output}']";
+  const registered = registeredPlugins([
+    {
+      kind: "sensor",
+      name: "mine",
+      command: ["python3", "tools/sense.py"],
+      manifest: ["python3", "tools/sense.py", "manifest"],
+    },
+  ]);
 
-  const configOf = (manifest: boolean) =>
-    [
-      "sensors:",
-      "  mine:",
-      `    command: ${RUN}`,
-      ...(manifest
-        ? ["    manifest: [python3, tools/sense.py, manifest]"]
-        : []),
-      "",
-    ].join("\n");
-
-  const customIo = (manifest: boolean) =>
+  const customIo = () =>
     fakeIo({
-      files: { [CONFIG]: configOf(manifest) },
-      onPath: OFFICIAL_ON_PATH,
+      files: registered.files,
+      env: registered.env,
       programs: {
         python3: (args) => {
           if (args.at(-1) === "manifest") {
@@ -551,7 +538,7 @@ describe("a custom-command sensor", () => {
     });
 
   it("is checked through its manifest and its words before run", () => {
-    const fake = customIo(true);
+    const fake = customIo();
 
     expect(check(fake)).toBe(1);
     expect(fake.out()).toContain("mine: 1 gap");
@@ -562,29 +549,12 @@ describe("a custom-command sensor", () => {
     expect(call?.args.slice(0, 2)).toEqual(["tools/sense.py", "check"]);
   });
 
-  it("with no manifest is counted ready and never run", () => {
-    const fake = customIo(false);
-
-    expect(check(fake)).toBe(0);
-    expect(fake.out()).toBe("mine: no readiness check\n");
-    expect(fake.calls).toEqual([]);
-  });
-
   it("with a manifest prints the guide from its words before run", () => {
-    const fake = customIo(true);
+    const fake = customIo();
     vi.spyOn(process, "cwd").mockReturnValue(ROOT);
 
     expect(run(["help", "sensors", "mine"], fake.io)).toBe(0);
     expect(fake.out()).toBe("custom guide\n");
     expect(fake.calls.at(-1)?.args).toEqual(["tools/sense.py", "guide"]);
-  });
-
-  it("with no manifest supplies no setup guide", () => {
-    const fake = customIo(false);
-    vi.spyOn(process, "cwd").mockReturnValue(ROOT);
-
-    expect(run(["help", "sensors", "mine"], fake.io)).toBe(0);
-    expect(fake.out()).toBe("mine supplies no setup guide\n");
-    expect(fake.calls).toEqual([]);
   });
 });

@@ -12,7 +12,7 @@ import {
 import { parse } from "yaml";
 import type { Io } from "../../cli.js";
 import { configFile, readConfig } from "../../config.js";
-import { registeredSensors, schemaMessages } from "../../config-parse.js";
+import { schemaMessages, sensorSettingsOf } from "../../config-parse.js";
 import { detectLanguages } from "../../detect.js";
 import { InputError } from "../../errors.js";
 import { readCachedRepository } from "../../scan-facts.js";
@@ -125,10 +125,8 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
     };
   }
 
-  registeredSensors(
-    root: string,
-  ): { name: string; command: string[]; manifest?: string[] }[] {
-    return registeredSensors(readConfig(this.io, root, ["sensors"]));
+  sensorSettings(root: string, name: string): Record<string, unknown> {
+    return sensorSettingsOf(readConfig(this.io, root, ["sensors"]), name);
   }
 
   suites(root: string): readonly unknown[] | undefined {

@@ -63,7 +63,7 @@ function repositoryChecksOf(
       };
     },
     scansState: () => given.scans(),
-    registeredSensors: () => [],
+    sensorSettings: () => ({}),
     suites: () => undefined,
   };
 }
@@ -95,6 +95,16 @@ function problemsOf(configText: string, keys: PublishedValues) {
       },
       keys,
     ),
+    {
+      entries: () => ({
+        plugins: [],
+        shadowed: [],
+        unreadable: [],
+        describer: null,
+      }),
+      register: () => ({ status: "refused", reason: "fake" }),
+      unregister: () => ({ status: "not-registered" }),
+    },
     "/repo",
     false,
   ).problems;

@@ -5,7 +5,7 @@ import { KeyOwnersAdapter } from "../src/adapters/plugins/key-owners-adapter.js"
 import { REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
 import { registeredPlugins } from "./registered-plugins.js";
-import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
+import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const OFFICIAL_REGISTERED = registeredPlugins([
   { kind: "sensor", name: "crap" },
@@ -84,7 +84,7 @@ describe("KeyOwnersAdapter", () => {
     }).schemas();
 
     expect(notAnswering).toHaveLength(1);
-    expect(notAnswering[0]).toContain("recognizer-sense-mutation");
+    expect(notAnswering[0]).toContain("sensors.mutation");
     expect(notAnswering[0]).toContain("tests.<name>.command");
     expect(
       schema.keys.find((entry) => entry.key === "tests.<name>.command")
@@ -108,7 +108,7 @@ describe("KeyOwnersAdapter", () => {
     }).schemas();
 
     expect(notAnswering).toHaveLength(1);
-    expect(notAnswering[0]).toContain("recognizer-sense-mutation");
+    expect(notAnswering[0]).toContain("sensors.mutation");
     expect(notAnswering[0]).toContain("<variable>");
     expect(schema.placeholders.variable).toBe("^[A-Za-z_][A-Za-z0-9_]*$");
     expect(
@@ -140,7 +140,7 @@ describe("KeyOwnersAdapter", () => {
     }).schemas();
 
     expect(notAnswering).toHaveLength(1);
-    expect(notAnswering[0]).toContain("recognizer-sense-mutation");
+    expect(notAnswering[0]).toContain("sensors.mutation");
     expect(notAnswering[0]).toContain("<metric>.above");
     expect(notAnswering[0]).toContain("<metric>");
     expect(schema.keys.map((entry) => entry.key)).toContain(
@@ -206,8 +206,15 @@ describe("KeyOwnersAdapter", () => {
   });
 
   describe("with a repository root", () => {
-    const CONFIG = `${ROOT}/.recognizer/config.yaml`;
     const mine = { ...exampleManifest("crap"), name: "mine" };
+    const registered = (...names: string[]) =>
+      registeredPlugins(
+        names.map((name) => ({
+          kind: "sensor" as const,
+          name,
+          command: [`${name}-sense`],
+        })),
+      );
     const keysOf = (schema: { keys: { key: string }[] }, prefix: string) =>
       schema.keys
         .map((entry) => entry.key)
@@ -215,10 +222,7 @@ describe("KeyOwnersAdapter", () => {
 
     it("publishes the settings of a registered custom sensor under its registered name", () => {
       const { schema, notAnswering } = adapterFor({
-        files: {
-          [CONFIG]:
-            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
-        },
+        ...registered("mine"),
         programs: { "mine-sense": manifestProgram(mine) },
       }).schemas(ROOT);
 
@@ -232,10 +236,7 @@ describe("KeyOwnersAdapter", () => {
 
     it("lists a registered sensor whose manifest cannot be read as not answering", () => {
       const { schema, notAnswering } = adapterFor({
-        files: {
-          [CONFIG]:
-            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
-        },
+        ...registered("mine"),
       }).schemas(ROOT);
 
       expect(notAnswering).toHaveLength(1);
@@ -246,12 +247,7 @@ describe("KeyOwnersAdapter", () => {
     it("publishes a sensor that is registered and on PATH once, from the registered read", () => {
       const { schema } = adapterFor({
         sensorManifests: true,
-        env: OFFICIAL_REGISTERED.env,
-        files: {
-          ...OFFICIAL_REGISTERED.files,
-          [CONFIG]:
-            "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 3\n",
-        },
+        ...OFFICIAL_REGISTERED,
       }).schemas(ROOT);
 
       expect(
@@ -261,24 +257,9 @@ describe("KeyOwnersAdapter", () => {
       ).toEqual(["sensors.crap.threshold"]);
     });
 
-    it("keeps publishing a PATH sensor whose registration names no manifest", () => {
-      const { schema } = adapterFor({
-        sensorManifests: true,
-        onPath: OFFICIAL_ON_PATH,
-        files: { [CONFIG]: "sensors:\n  crap:\n    threshold: 3\n" },
-      }).schemas(ROOT);
-
-      expect(keysOf(schema, "sensors.crap.")).toContain(
-        "sensors.crap.threshold",
-      );
-    });
-
-    it("answers one readable, one unreadable and one with no manifest each their own way", () => {
+    it("answers one readable and one unreadable each their own way", () => {
       const { schema, notAnswering } = adapterFor({
-        files: {
-          [CONFIG]:
-            "sensors:\n  good:\n    command: [good-sense, run]\n    manifest: [good-sense, manifest]\n  bad:\n    command: [bad-sense, run]\n    manifest: [bad-sense, manifest]\n  bare:\n    command: [bare-sense, run]\n",
-        },
+        ...registered("good", "bad"),
         programs: {
           "good-sense": manifestProgram({ ...mine, name: "good" }),
         },
@@ -289,7 +270,6 @@ describe("KeyOwnersAdapter", () => {
       );
       expect(notAnswering).toHaveLength(1);
       expect(notAnswering[0]).toContain("sensors.bad");
-      expect(keysOf(schema, "sensors.bare.")).toEqual([]);
       expect(keysOf(schema, "sensors.bad.")).toEqual([]);
     });
 
@@ -301,10 +281,7 @@ describe("KeyOwnersAdapter", () => {
         ],
       };
       const { notAnswering } = adapterFor({
-        files: {
-          [CONFIG]:
-            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
-        },
+        ...registered("mine"),
         programs: { "mine-sense": manifestProgram(reserved) },
       }).schemas(ROOT);
 

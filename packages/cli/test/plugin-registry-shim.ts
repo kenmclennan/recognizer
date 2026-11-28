@@ -97,3 +97,20 @@ export function useRegisteredShims(...shimDirectories: string[]): () => void {
     }
   };
 }
+
+export function registerWords(
+  directory: string,
+  kind: PluginKind,
+  name: string,
+  command: string[],
+): void {
+  new PluginRegistrationsAdapter(
+    registryIo(registryFolderFor(directory)),
+  ).register({
+    kind,
+    name,
+    command,
+    manifest: [command[0] as string, "manifest"],
+    source: "user",
+  });
+}

@@ -7,12 +7,14 @@ import {
   describerManifestText,
   type FakeOptions,
   fakeIo,
+  type Program,
+  type ProgramEffect,
   PYTHON,
   ROOT,
   scanJson,
-  scannerManifestText,
   TYPESCRIPT,
 } from "./scan-helpers.js";
+import { sensorManifest } from "./support/sensor-program.js";
 
 const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const TS_CACHE = `${ROOT}/.recognizer/cache/scan.typescript.json`;
@@ -684,12 +686,7 @@ describe("recognizer scan: phases", () => {
   const STRUCTURE = `${ROOT}/.recognizer/cache/findings/structure.json`;
   const STRUCTURE_OVERLAY = `${ROOT}/.recognizer/cache/overlays/structure.json`;
   const LOG = `${ROOT}/.recognizer/cache/log`;
-  const SENSORS =
-    'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
-  const DESCRIBER =
-    'describer:\n  command: [describer, "{module}"]\n  version: "v1"\n';
-  const DESCRIBER_PRICED =
-    'describer:\n  command: [describer, run, "{module}"]\n  version: "v1"\n';
+  const DESCRIBE_PROGRAM = "recognizer-describe-test";
 
   function current(changes: Record<string, unknown> = {}): string {
     return scanJson(2, 1, {
@@ -706,7 +703,7 @@ describe("recognizer scan: phases", () => {
   function findings(name: string) {
     return (args: string[], files: Map<string, string>) => {
       files.set(
-        args[args.length - 1] as string,
+        args[args.indexOf("--output") + 1] as string,
         JSON.stringify({
           findings_version: 1,
           sensor: { name, version: "1" },
@@ -721,12 +718,56 @@ describe("recognizer scan: phases", () => {
     };
   }
 
+  function describerProgram(
+    handle: (module: string) => ProgramEffect = () => ({ stdout: "a line\n" }),
+  ): Program {
+    return (args, files) => {
+      if (args[0] === "manifest") {
+        return { stdout: describerManifestText("v1") };
+      }
+
+      if (args[0] !== "run") {
+        return {};
+      }
+
+      const request = JSON.parse(files.get(args.at(-1) as string) as string);
+
+      return handle(request.module);
+    };
+  }
+
+  function sensorProgram(name: string, program: Program): Program {
+    return (args, files) =>
+      args[0] === "manifest"
+        ? { stdout: sensorManifest(name) }
+        : program(args, files);
+  }
+
   function setup(
     changes: FakeOptions = {},
     files: Record<string, string> = {},
   ): FakeOptions {
+    const programs: Record<string, Program> = {
+      [DESCRIBE_PROGRAM]: describerProgram(),
+      "recognizer-sense-first": findings("first"),
+      "recognizer-sense-second": findings("second"),
+      ...changes.programs,
+    };
+
+    for (const [name, program] of Object.entries(programs)) {
+      if (name.startsWith("recognizer-sense-")) {
+        programs[name] = sensorProgram(
+          name.slice("recognizer-sense-".length),
+          program,
+        );
+      }
+    }
+
     return {
       commit: COMMIT,
+      onPath: Object.keys(programs).filter((name) =>
+        /^recognizer-(sense|describe)-/.test(name),
+      ),
       files: {
         [`${ROOT}/a.py`]: "",
         [`${ROOT}/m0.py`]: "one",
@@ -735,12 +776,8 @@ describe("recognizer scan: phases", () => {
         ...files,
       },
       scanners: { [PYTHON]: { output: current() } },
-      programs: {
-        describer: () => ({ stdout: "a line\n" }),
-        "first-sensor": findings("first"),
-        "second-sensor": findings("second"),
-      },
       ...changes,
+      programs,
     };
   }
 
@@ -923,7 +960,7 @@ describe("recognizer scan: phases", () => {
 
   it("runs extract, describe and sense in that order and records them", async () => {
     const { out, fake, code } = await scan(
-      setup({}, { [CONFIG]: `${DESCRIBER_PRICED}${SENSORS}` }),
+      setup(),
       "--describe",
       "--sense",
       "all",
@@ -954,9 +991,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("leaves absent phases out of the output and the record", async () => {
-    const { fake, out } = await scan(
-      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
-    );
+    const { fake, out } = await scan(setup());
 
     expect(out).not.toContain("describe");
     expect(out).not.toContain("sense");
@@ -966,12 +1001,11 @@ describe("recognizer scan: phases", () => {
   });
 
   it("describes everything with --describe=all and only stale lines without", async () => {
-    const files = { [CONFIG]: DESCRIBER };
-    const first = await scan(setup({}, files), "--describe");
+    const first = await scan(setup(), "--describe");
 
     expect(first.out).toContain("described 2, failed 0, already current 0");
 
-    const again = fakeIo(setup({}, files));
+    const again = fakeIo(setup());
 
     await run(["scan", ROOT, "--describe"], again.io);
     await run(["scan", ROOT, "--describe"], again.io);
@@ -986,24 +1020,17 @@ describe("recognizer scan: phases", () => {
   it("fails the run after the remaining entries when a describer entry fails", async () => {
     const calls: string[] = [];
     const { code, fake, err } = await scan(
-      setup(
-        {
-          programs: {
-            describer: (args) => {
-              if (args[0] === "--version") {
-                return { stdout: "1\n" };
-              }
+      setup({
+        programs: {
+          [DESCRIBE_PROGRAM]: describerProgram((module) => {
+            calls.push(module);
 
-              calls.push(args[0] as string);
-
-              return args[0] === "m0.py"
-                ? { status: 1, stderr: "nope" }
-                : { stdout: "ok\n" };
-            },
-          },
+            return module === "m0.py"
+              ? { status: 1, stderr: "nope" }
+              : { stdout: "ok\n" };
+          }),
         },
-        { [CONFIG]: DESCRIBER },
-      ),
+      }),
       "--describe",
     );
 
@@ -1014,17 +1041,15 @@ describe("recognizer scan: phases", () => {
   });
 
   it("reports a describer that hit the usage limit as a stopped event before the summary", async () => {
-    const limited = setup(
-      {
-        programs: {
-          describer: (args) =>
-            args[0] === "m0.py"
-              ? { status: 75, stderr: "claude usage limit: out of quota" }
-              : { stdout: "ok\n" },
-        },
+    const limited = setup({
+      programs: {
+        [DESCRIBE_PROGRAM]: describerProgram((module) =>
+          module === "m0.py"
+            ? { status: 75, stderr: "claude usage limit: out of quota" }
+            : { stdout: "ok\n" },
+        ),
       },
-      { [CONFIG]: DESCRIBER },
-    );
+    });
     const { code, out } = await scan(limited, "--describe", "--json");
     const events = lines(out).map((line) => line.event);
     const stopped = lines(out).find((line) => line.event === "stopped");
@@ -1043,11 +1068,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("emits the projection event immediately before the describe phase event", async () => {
-    const { out } = await scan(
-      setup({}, { [CONFIG]: DESCRIBER }),
-      "--describe",
-      "--json",
-    );
+    const { out } = await scan(setup(), "--describe", "--json");
     const all = lines(out);
     const at = all.findIndex((line) => line.event === "projection");
 
@@ -1061,10 +1082,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("prints the projection as the first line after the describe heading", async () => {
-    const { out } = await scan(
-      setup({}, { [CONFIG]: DESCRIBER_PRICED }),
-      "--describe",
-    );
+    const { out } = await scan(setup(), "--describe");
     const rows = out.split("\n");
     const heading = rows.indexOf("describe");
 
@@ -1084,7 +1102,7 @@ describe("recognizer scan: phases", () => {
       described: number;
     }> => {
       const reads = { count: 0 };
-      const options = setup({}, { [CONFIG]: DESCRIBER_PRICED });
+      const options = setup();
       const { out } = await scan(
         { ...options, lines: [...answers], linesRead: reads },
         "--describe",
@@ -1151,7 +1169,7 @@ describe("recognizer scan: phases", () => {
 
     it("asks when the model has no known price", async () => {
       const reads = { count: 0 };
-      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const options = setup();
       const { out } = await scan(
         {
           ...options,
@@ -1193,7 +1211,7 @@ describe("recognizer scan: phases", () => {
       extra: Partial<FakeOptions>,
       startedBy: "app" | "cli",
     ) => {
-      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const options = setup();
       const fake = fakeIo({
         ...options,
         env: { RECOGNIZER_STARTED_BY: startedBy },
@@ -1347,17 +1365,14 @@ describe("recognizer scan: phases", () => {
 
   it("says on stderr that the describe phase stopped", async () => {
     const { code, err, out } = await scan(
-      setup(
-        {
-          programs: {
-            describer: () => ({
-              status: 75,
-              stderr: "claude usage limit: out of quota",
-            }),
-          },
+      setup({
+        programs: {
+          [DESCRIBE_PROGRAM]: describerProgram(() => ({
+            status: 75,
+            stderr: "claude usage limit: out of quota",
+          })),
         },
-        { [CONFIG]: DESCRIBER },
-      ),
+      }),
       "--describe",
     );
 
@@ -1370,15 +1385,12 @@ describe("recognizer scan: phases", () => {
 
   it("fails the run after the remaining entries when a sensor entry fails", async () => {
     const { code, fake, out } = await scan(
-      setup(
-        {
-          programs: {
-            "first-sensor": () => ({ status: 3, stderr: "bad" }),
-            "second-sensor": findings("second"),
-          },
+      setup({
+        programs: {
+          "recognizer-sense-first": () => ({ status: 3, stderr: "bad" }),
+          "recognizer-sense-second": findings("second"),
         },
-        { [CONFIG]: SENSORS },
-      ),
+      }),
       "--sense",
       "all",
     );
@@ -1393,10 +1405,7 @@ describe("recognizer scan: phases", () => {
   it("still runs the sense phase when extraction failed", async () => {
     const { code, out } = await scan(
       {
-        ...setup(
-          {},
-          { [CONFIG]: SENSORS, [PY_CACHE]: current({ commit: "old" }) },
-        ),
+        ...setup({}, { [PY_CACHE]: current({ commit: "old" }) }),
         scanners: { [PYTHON]: { unstartable: true } },
       },
       "--sense",
@@ -1407,19 +1416,15 @@ describe("recognizer scan: phases", () => {
     expect(out).toContain("sense\nran first\n");
   });
 
-  it("selects the named sensors in config order", async () => {
-    const { out } = await scan(
-      setup({}, { [CONFIG]: SENSORS }),
-      "--sense",
-      "second,first",
-    );
+  it("selects the named sensors in name order", async () => {
+    const { out } = await scan(setup(), "--sense", "second,first");
 
     expect(out.indexOf("ran first")).toBeLessThan(out.indexOf("ran second"));
   });
 
   it("is exit 2 before anything runs for an unknown sensor, naming the registered ones", async () => {
     const { code, err, fake } = await scan(
-      setup({}, { [CONFIG]: SENSORS }),
+      setup(),
       "--sense",
       "first,nope,second",
     );
@@ -1431,13 +1436,10 @@ describe("recognizer scan: phases", () => {
     expect(records(fake)).toEqual([]);
   });
 
-  it.each([["--sense with no sensors registered", ["--sense", "all"], ""]])(
+  it.each([["--sense with no sensors registered", ["--sense", "all"]]])(
     "is exit 2 for %s",
-    async (_, args, config) => {
-      const { code, fake } = await scan(
-        setup({}, { [CONFIG]: config }),
-        ...args,
-      );
+    async (_, args) => {
+      const { code, fake } = await scan(setup({ onPath: [] }), ...args);
 
       expect(code).toBe(2);
       expect(extractCalls(fake)).toEqual([]);
@@ -1446,10 +1448,7 @@ describe("recognizer scan: phases", () => {
   );
 
   it("refuses --describe with no describer registered and nothing installed to start", async () => {
-    const { code, fake, err } = await scan(
-      setup({}, { [CONFIG]: "" }),
-      "--describe",
-    );
+    const { code, fake, err } = await scan(setup({ onPath: [] }), "--describe");
 
     expect(code).toBe(2);
     expect(err).toBe(`${noneRegistered()}\n`);
@@ -1457,7 +1456,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("refuses --describe with no describer registered and runs nothing", async () => {
-    const base = setup({}, { [CONFIG]: "" });
+    const base = setup({ onPath: [] });
     const { code, err, fake } = await scan(
       {
         ...base,
@@ -1484,18 +1483,14 @@ describe("recognizer scan: phases", () => {
   });
 
   it("emits no start line without --json", async () => {
-    const { out } = await scan(
-      setup({}, { [CONFIG]: SENSORS }),
-      "--sense",
-      "first",
-    );
+    const { out } = await scan(setup(), "--sense", "first");
 
     expect(out).not.toContain('"event":"start"');
   });
 
   it("is exit 4 with a no-commit gap for --sense with no commit", async () => {
     const { code, err, fake } = await scan(
-      { ...setup({}, { [CONFIG]: SENSORS }), commit: undefined },
+      { ...setup(), commit: undefined },
       "--sense",
       "all",
     );
@@ -1507,22 +1502,9 @@ describe("recognizer scan: phases", () => {
     expect(extractCalls(fake)).toEqual([]);
   });
 
-  function describing() {
-    return setup(
-      {
-        programs: {
-          describer: () => ({ stdout: "a line\n" }),
-          "first-sensor": findings("first"),
-          "second-sensor": findings("second"),
-        },
-      },
-      { [CONFIG]: `${DESCRIBER}${SENSORS}` },
-    );
-  }
-
   it("runs extract, describe and sense in that order and records them", async () => {
     const { out, fake, code } = await scan(
-      describing(),
+      setup(),
       "--describe",
       "--sense",
       "all",
@@ -1539,7 +1521,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("is exit 2 for --measure as an unknown option, running nothing", async () => {
-    const { code, err, fake } = await scan(describing(), "--measure", "all");
+    const { code, err, fake } = await scan(setup(), "--measure", "all");
 
     expect(code).toBe(2);
     expect(err).toContain("unknown option: --measure");
@@ -1573,18 +1555,15 @@ describe("recognizer scan: phases", () => {
       fix: "Fix the failing tests",
     };
     const { out } = await scan(
-      setup(
-        {
-          programs: {
-            "first-sensor": () => ({
-              status: 2,
-              stderr: `recognizer-event ${JSON.stringify({ event: "diagnosis", code: diagnosis.code, text: diagnosis.line, fix: diagnosis.fix })}\n${diagnosis.line}\n`,
-            }),
-            "second-sensor": findings("second"),
-          },
+      setup({
+        programs: {
+          "recognizer-sense-first": () => ({
+            status: 2,
+            stderr: `recognizer-event ${JSON.stringify({ event: "diagnosis", code: diagnosis.code, text: diagnosis.line, fix: diagnosis.fix })}\n${diagnosis.line}\n`,
+          }),
+          "recognizer-sense-second": findings("second"),
         },
-        { [CONFIG]: SENSORS },
-      ),
+      }),
       "--sense",
       "all",
       "--json",
@@ -1608,7 +1587,7 @@ describe("recognizer scan: phases", () => {
 
   it("streams phase, entry and summary lines under --json", async () => {
     const { out } = await scan(
-      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
+      setup(),
       "--describe",
       "--sense",
       "first",
@@ -1656,140 +1635,6 @@ describe("recognizer scan: phases", () => {
     });
   });
 
-  describe("an unregistered installed plugin", () => {
-    const crapLine =
-      "crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`.\n";
-    const mutationLine = crapLine.replaceAll("crap", "mutation");
-
-    function installedRun(config: string, describe = false) {
-      const base = setup({}, { [CONFIG]: config });
-
-      return {
-        ...base,
-        onPath: [
-          ...(base.onPath ?? []),
-          "recognizer-sense-crap",
-          "recognizer-sense-mutation",
-        ],
-        programs: {
-          ...base.programs,
-          "installed-sensors": (args: string[], files: Map<string, string>) => {
-            files.set(
-              args[args.indexOf("--output") + 1] as string,
-              JSON.stringify({
-                findings_version: 1,
-                sensor: { name: "crap", version: "1" },
-                commit: COMMIT,
-                modified: false,
-                settings: {},
-                findings: [],
-              }),
-            );
-
-            return undefined;
-          },
-          ...(describe
-            ? {
-                "recognizer-describe-claude": (args: string[]) =>
-                  args[0] === "manifest"
-                    ? { stdout: describerManifestText("prompt-0123456789ab") }
-                    : { stdout: "a described line\n" },
-              }
-            : {}),
-        },
-      };
-    }
-
-    function pluginRuns(fake: {
-      calls: { command: string; args: string[] }[];
-    }) {
-      return fake.calls.filter(
-        (call) =>
-          (call.command.startsWith("recognizer-sense-") ||
-            call.command === "recognizer-describe-claude") &&
-          call.args[0] === "run",
-      );
-    }
-
-    it("refuses the sensor and runs nothing", async () => {
-      const { code, err, fake } = await scan(
-        installedRun(""),
-        "--sense",
-        "crap",
-      );
-
-      expect(code).toBe(2);
-      expect(err).toBe(crapLine);
-      expect(pluginRuns(fake)).toEqual([]);
-
-      const registered = await scan(
-        installedRun("sensors:\n  crap: {}\n"),
-        "--sense",
-        "crap",
-      );
-
-      expect(registered.code).toBe(0);
-      expect(pluginRuns(registered.fake)).not.toEqual([]);
-    });
-
-    it("refuses a name requested twice once", async () => {
-      const { err } = await scan(installedRun(""), "--sense", "crap,crap");
-
-      expect(err).toBe(crapLine);
-    });
-
-    it("refuses each unregistered sensor", async () => {
-      const { code, err } = await scan(
-        installedRun(""),
-        "--sense",
-        "crap,mutation",
-      );
-
-      expect(code).toBe(2);
-      expect(err).toBe(crapLine + mutationLine);
-    });
-
-    it("refuses nothing when the sensor is registered", async () => {
-      const { code, out, err } = await scan(
-        installedRun("sensors:\n  crap: {}\n"),
-        "--sense",
-        "crap",
-      );
-
-      expect(code).toBe(0);
-      expect(out).toContain("ran crap");
-      expect(err).not.toContain("not registered");
-    });
-
-    it("refuses nothing for --sense all", async () => {
-      const { code, err } = await scan(
-        installedRun("sensors:\n  crap: {}\n"),
-        "--sense",
-        "all",
-      );
-
-      expect(code).toBe(0);
-      expect(err).not.toContain("not registered");
-    });
-
-    it("refuses nothing when a describer is registered", async () => {
-      const { code, err } = await scan(
-        installedRun(DESCRIBER, true),
-        "--describe",
-      );
-
-      expect(code).toBe(0);
-      expect(err).not.toContain("not registered");
-    });
-
-    it("scans an unconfigured repository by default", async () => {
-      const { code, err } = await scan(installedRun("", true));
-
-      expect(code).toBe(0);
-      expect(err).not.toContain("not registered");
-    });
-  });
-
   describe("a sensor that reports progress", () => {
     const EVENTS = [
       'recognizer-event {"event":"start","total":2,"unit":"functions"}',
@@ -1802,28 +1647,25 @@ describe("recognizer scan: phases", () => {
     ].join("\n");
 
     function mutating() {
-      return setup(
-        {
-          programs: {
-            "installed-sensors": (args, files) => {
-              files.set(
-                args[args.indexOf("--output") + 1] as string,
-                JSON.stringify({
-                  findings_version: 1,
-                  sensor: { name: "mutation", version: "1" },
-                  commit: COMMIT,
-                  modified: false,
-                  settings: {},
-                  findings: [],
-                }),
-              );
+      return setup({
+        programs: {
+          "recognizer-sense-mutation": (args, files) => {
+            files.set(
+              args[args.indexOf("--output") + 1] as string,
+              JSON.stringify({
+                findings_version: 1,
+                sensor: { name: "mutation", version: "1" },
+                commit: COMMIT,
+                modified: false,
+                settings: {},
+                findings: [],
+              }),
+            );
 
-              return { stderr: EVENTS };
-            },
+            return { stderr: EVENTS };
           },
         },
-        { [CONFIG]: "sensors:\n  mutation: {}\n" },
-      );
+      });
     }
 
     it("passes each plugin event through the --json stream as a plugin line between start and entry", async () => {
@@ -1929,7 +1771,7 @@ describe("recognizer scan: phases", () => {
   });
 
   it("writes the record when it opens, after every entry and when it finishes", async () => {
-    const fake = fakeIo(setup({}, { [CONFIG]: SENSORS }));
+    const fake = fakeIo(setup());
     const snapshots: string[] = [];
     const watching = {
       ...fake.io,
@@ -1991,11 +1833,7 @@ describe("recognizer scan: phases", () => {
     });
 
     it("records the sense phase duration and a file count on each sense entry", async () => {
-      const { fake } = await scan(
-        setup({}, { [CONFIG]: SENSORS }),
-        "--sense",
-        "first,second",
-      );
+      const { fake } = await scan(setup(), "--sense", "first,second");
       const sense = phaseOf(fake, "sense");
 
       expect(sense.duration_ms).toBeGreaterThan(0);
@@ -2008,25 +1846,22 @@ describe("recognizer scan: phases", () => {
     it("a phase duration ignores an injected sleep gap", async () => {
       let wall = 0;
       const { fake } = await scan(
-        setup(
-          {
-            now: () => {
-              wall += 8 * 3_600_000;
+        setup({
+          now: () => {
+            wall += 8 * 3_600_000;
 
-              return wall;
-            },
-            awake: (() => {
-              let awake = 0;
-
-              return () => {
-                awake += 1;
-
-                return awake;
-              };
-            })(),
+            return wall;
           },
-          { [CONFIG]: SENSORS },
-        ),
+          awake: (() => {
+            let awake = 0;
+
+            return () => {
+              awake += 1;
+
+              return awake;
+            };
+          })(),
+        }),
         "--sense",
         "first,second",
       );
@@ -2054,18 +1889,15 @@ describe("recognizer scan: phases", () => {
       const reads = { count: 0 };
       let clock = 0;
       const { fake } = await scan(
-        setup(
-          {
-            lines: ["describe"],
-            linesRead: reads,
-            now: () => {
-              clock += 1;
+        setup({
+          lines: ["describe"],
+          linesRead: reads,
+          now: () => {
+            clock += 1;
 
-              return clock + (reads.count > 0 ? 100_000 : 0);
-            },
+            return clock + (reads.count > 0 ? 100_000 : 0);
           },
-          { [CONFIG]: DESCRIBER },
-        ),
+        }),
         "--describe",
         "--json",
         "--confirm-above",

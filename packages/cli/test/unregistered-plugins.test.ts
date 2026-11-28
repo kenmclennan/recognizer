@@ -1,60 +1,16 @@
 import {
-  refuseUnregistered as refuse,
   UNREGISTERED_FIX,
   unregisteredSensors as unregistered,
   unregisteredMessage,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { asInputError, InputError } from "../src/errors.js";
 
 const INSTALLED = ["crap", "mutation"];
-
-const refuseUnregistered = (
-  registered: readonly string[],
-  requested: readonly string[],
-) => asInputError(() => refuse(registered, requested, INSTALLED));
 
 const unregisteredSensors = (
   registered: readonly string[],
   requested: readonly string[],
 ) => unregistered(registered, requested, INSTALLED);
-
-function refusal(registered: string[], requested: string[]): string[] | null {
-  try {
-    refuseUnregistered(registered, requested);
-  } catch (error) {
-    return (error as InputError).messages;
-  }
-
-  return null;
-}
-
-describe("refuseUnregistered", () => {
-  it("refuses only the unregistered installed names, once each, in request order", () => {
-    expect(refusal(["mutation"], ["crap", "mutation", "crap"])).toEqual([
-      unregisteredMessage("crap"),
-    ]);
-  });
-
-  it("does not throw when every requested sensor is registered", () => {
-    expect(refusal(["crap", "mutation"], ["crap", "mutation"])).toBeNull();
-  });
-
-  it("gives one line per requested installed name when none is registered", () => {
-    expect(refusal([], ["mutation", "crap"])).toEqual([
-      unregisteredMessage("mutation"),
-      unregisteredMessage("crap"),
-    ]);
-  });
-
-  it("never names a requested sensor that is not installed", () => {
-    expect(refusal([], ["custom"])).toBeNull();
-  });
-
-  it("throws an InputError", () => {
-    expect(() => refuseUnregistered([], ["crap"])).toThrow(InputError);
-  });
-});
 
 describe("unregisteredMessage", () => {
   it("fills the name into the binding text", () => {

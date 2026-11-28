@@ -186,7 +186,7 @@ describe("recognizer help config", () => {
     expect(fake.out()).not.toContain("sensors.mutation.max_workers");
 
     for (const name of NAMES) {
-      expect(fake.out()).toContain(`recognizer-sense-${name} did not answer`);
+      expect(fake.out()).toContain(`sensors.${name} did not answer`);
     }
   });
 });
@@ -219,7 +219,7 @@ describe("loadKeys over three sensor manifests", () => {
     expect(published.notAnswering).not.toBeNull();
     expect(published.notAnswering?.split("; ")).toHaveLength(1);
     expect(published.notAnswering).toContain(
-      "recognizer-sense-mutation did not answer: ",
+      "sensors.mutation did not answer: ",
     );
   });
 
@@ -250,7 +250,7 @@ describe("a sensors program that does not answer", () => {
 
       expect(config(fake, "sensors.mutation.carry", "x")).toBe(2);
       expect(fake.err()).toContain("sensors.mutation.carry: no such key");
-      expect(fake.err()).toContain("recognizer-sense-mutation did not answer");
+      expect(fake.err()).toContain("sensors.mutation did not answer");
       expect(fake.files.has(CONFIG)).toBe(false);
 
       expect(config(fake, "tests.unit.command", "x")).toBe(0);
@@ -294,8 +294,8 @@ describe("recognizer config --schema", () => {
 
     expect(config(fake, "--schema")).toBe(1);
     expect(fake.out()).toBe("");
-    expect(fake.err()).toContain("recognizer-sense-crap did not answer");
-    expect(fake.err()).toContain("recognizer-sense-mutation did not answer");
+    expect(fake.err()).toContain("sensors.crap did not answer");
+    expect(fake.err()).toContain("sensors.mutation did not answer");
   });
 
   it("is refused combined with --list", () => {

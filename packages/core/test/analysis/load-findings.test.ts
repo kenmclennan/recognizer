@@ -18,6 +18,7 @@ function world() {
 
   const ports: LoadFindingsPorts = {
     config: fakes.config,
+    catalog: fakes.catalog,
     findings: fakes.findings,
     policy: fakes.policy,
     source: fakes.source,
@@ -132,7 +133,7 @@ describe("loadFindings", () => {
       findings: [],
     } as unknown as SensorFindings;
 
-    fakes.config.sensors = ["alpha", "beta"];
+    fakes.catalog.named = ["alpha", "beta"];
     fakes.findings.stored.set("alpha", {
       name: "alpha",
       status: "read",

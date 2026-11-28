@@ -8,12 +8,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { Run, SensorRegistry } from "@recognizer/core";
+import { Run } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { ActiveRunAdapter } from "../src/adapters/filesystem/active-run-adapter.js";
-import { ConfigAdapter } from "../src/adapters/filesystem/config-adapter.js";
 import { RunLogAdapter } from "../src/adapters/filesystem/run-log-adapter.js";
 import { nodeIo } from "../src/cli.js";
 import { validateRunRecord } from "../src/log-document.js";
@@ -732,41 +730,5 @@ describe("active run adapter", () => {
     expect(read.record.gaps).toEqual(gaps);
     expect(read.record.failure).toEqual(failure);
     expect(read.record.ran).toEqual(["sense"]);
-  });
-
-  it("registry_over_this_repositorys_committed_config_lists_its_registered_sensors", () => {
-    const root = makeTempDir("active-run-config-");
-    const source = join(REPO, ".recognizer", "config.yaml");
-
-    mkdirSync(join(root, ".recognizer"), { recursive: true });
-    copyFileSync(source, join(root, ".recognizer", "config.yaml"));
-
-    const committed = Object.keys(
-      (parse(readFileSync(source, "utf8")) as { sensors: object }).sensors,
-    );
-
-    expect(committed.length).toBeGreaterThan(0);
-
-    const config = new ConfigAdapter(nodeIo(), "all");
-    const names = config
-      .registeredSensors(config.sensorConfig(root))
-      .map(({ name }) => name);
-    const registry = SensorRegistry.read(names, {
-      readable: new Map(),
-      unreadable: new Map(),
-    });
-
-    expect(registry.entries.map(({ name }) => name)).toEqual(committed);
-    expect(registry.entries).toHaveLength(2);
-    expect(registry.entries.map(({ name }) => name)).toEqual([
-      "crap",
-      "mutation",
-    ]);
-
-    for (const entry of registry.entries) {
-      expect(entry).toMatchObject({ manifest: null, registered: true });
-    }
-
-    expect(registry.catalog.state).toBe("read");
   });
 });

@@ -26,13 +26,7 @@ const SUITES = [
   "    command: pytest",
   "    coverage: { path: coverage/lcov.info, format: lcov }",
 ];
-const REGISTERED = [
-  ...SUITES,
-  "sensors:",
-  "  crap: { manifest: [recognizer-sense-crap, manifest] }",
-  "  mutation: { manifest: [recognizer-sense-mutation, manifest] }",
-  "",
-];
+const REGISTERED = [...SUITES, ""];
 
 function findingsFor(name: string) {
   return (args: string[], files: Map<string, string>) => {
@@ -52,7 +46,11 @@ function findingsFor(name: string) {
   };
 }
 
-function setup(config: string[], extra: Record<string, string>): FakeOptions {
+function setup(
+  config: string[],
+  extra: Record<string, string>,
+  onPath = OFFICIAL_ON_PATH,
+): FakeOptions {
   return {
     commit: COMMIT,
     files: {
@@ -62,7 +60,7 @@ function setup(config: string[], extra: Record<string, string>): FakeOptions {
     },
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
     sensorManifests: true,
-    onPath: OFFICIAL_ON_PATH,
+    onPath,
     programs: {
       "installed-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
@@ -75,20 +73,29 @@ async function scan(
   extra: Record<string, string>,
   ...args: string[]
 ) {
-  const fake = fakeIo(setup(config, extra));
+  return scanWith(OFFICIAL_ON_PATH, config, extra, ...args);
+}
+
+async function scanWith(
+  onPath: string[],
+  config: string[],
+  extra: Record<string, string>,
+  ...args: string[]
+) {
+  const fake = fakeIo(setup(config, extra, onPath));
   const code = await run(["scan", ROOT, ...args], fake.io);
 
   return { code, err: fake.err(), fake };
 }
 
 describe("recognizer scan --sense refusals", () => {
-  it("refuses an unknown sensor, naming the registered and installed ones", async () => {
+  it("refuses an unknown sensor, naming the registered ones", async () => {
     const { code, err } = await scan(REGISTERED, {}, "--sense", "ghost");
 
     expect(code).toBe(2);
     expect(err).toContain("no such sensor: ghost\n");
     expect(err).toContain("registered sensors: crap, mutation\n");
-    expect(err).toMatch(/installed sensors: .*crap.*\n/);
+    expect(err).not.toContain("installed sensors:");
   });
 
   it("refuses duplication as part of structural analysis", async () => {
@@ -101,20 +108,11 @@ describe("recognizer scan --sense refusals", () => {
   });
 
   it("refuses all when no sensor is registered", async () => {
-    const { code, err } = await scan(SUITES, {}, "--sense", "all");
+    const { code, err } = await scanWith([], SUITES, {}, "--sense", "all");
 
     expect(code).toBe(2);
     expect(err).toContain(
-      "no sensors are registered: name one, or add it to .recognizer/config.yaml\n",
-    );
-  });
-
-  it("refuses an installed sensor that is not registered", async () => {
-    const { code, err } = await scan(SUITES, {}, "--sense", "crap");
-
-    expect(code).toBe(2);
-    expect(err).toContain(
-      "crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`.\n",
+      "no sensors are registered: register one with recognizer plugin register <program|path>\n",
     );
   });
 

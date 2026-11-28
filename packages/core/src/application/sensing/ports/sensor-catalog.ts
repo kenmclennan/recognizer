@@ -2,11 +2,13 @@ import type {
   InstalledRead,
   RegisteredRead,
   RegisteredSensorInput,
+  SensorInEffect,
 } from "../../plugins/installed-sensors.js";
 import type { PluginLimits } from "../../shared/ports/process.js";
 
 export interface SensorCatalog {
   installedNames(): string[];
+  sensorsInEffect(): SensorInEffect[];
   unreadableFolders(): string[];
   readInstalled(
     names?: readonly string[],

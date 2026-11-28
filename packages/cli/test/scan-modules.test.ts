@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import {
+  describerManifestText,
   type FakeOptions,
   fakeIo,
   OFFICIAL_ON_PATH,
@@ -8,13 +9,13 @@ import {
   ROOT,
   scanJson,
 } from "./scan-helpers.js";
+import { sensorManifest } from "./support/sensor-program.js";
 
 const COMMIT = "abc123";
 const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const FILE = "/scope/files.json";
-const DESCRIBER =
-  'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n';
+const DESCRIBER_PROGRAM = "recognizer-describe-test";
 
 function current(): string {
   return scanJson(3, 1, {
@@ -31,7 +32,7 @@ function current(): string {
 function findingsFor(name: string) {
   return (args: string[], files: Map<string, string>) => {
     files.set(
-      args[args.length - 1] as string,
+      args[args.indexOf("--output") + 1] as string,
       JSON.stringify({
         findings_version: 1,
         sensor: { name, version: "1" },
@@ -55,14 +56,17 @@ function setup(scope: string | undefined): FakeOptions {
       [`${ROOT}/m1.py`]: "one",
       [`${ROOT}/m2.py`]: "two",
       [PY_CACHE]: current(),
-      [CONFIG]: DESCRIBER,
+      [CONFIG]: "",
       ...(scope === undefined ? {} : { [FILE]: scope }),
     },
     scanners: { [PYTHON]: { output: current() } },
     sensorManifests: true,
-    onPath: OFFICIAL_ON_PATH,
+    onPath: [...OFFICIAL_ON_PATH, DESCRIBER_PROGRAM],
     programs: {
-      describer: () => ({ stdout: "a line\n" }),
+      [DESCRIBER_PROGRAM]: (args) =>
+        args[0] === "manifest"
+          ? { stdout: describerManifestText("v1") }
+          : { stdout: "a line\n" },
       "installed-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
     },
@@ -197,21 +201,23 @@ describe("recognizer scan --modules", () => {
 
   it("passes no scope argument to a registered command", async () => {
     const options = setup(JSON.stringify(["m0.py"]));
-    options.files = {
-      ...options.files,
-      [CONFIG]:
-        'sensors:\n  mine:\n    command: [recognizer-sensors, mutation, "{output}"]\n  other:\n    command: [other-sensor, "{output}"]\n',
-    };
+    options.onPath = [...(options.onPath ?? []), "recognizer-sense-other"];
     options.programs = {
       ...options.programs,
-      "other-sensor": (args, files) => findingsFor("other")(args, files),
+      "recognizer-sense-other": (args, files) =>
+        args[0] === "manifest"
+          ? { stdout: sensorManifest("other") }
+          : findingsFor("other")(args, files),
     };
 
     const fake = fakeIo(options);
 
     await run(["scan", ROOT, "--sense", "other", "--modules", FILE], fake.io);
 
-    const call = fake.calls.find((one) => one.command === "other-sensor");
+    const call = fake.calls.find(
+      (one) =>
+        one.command === "recognizer-sense-other" && one.args[0] === "run",
+    );
 
     expect(call?.args).not.toContain("--modules");
   });

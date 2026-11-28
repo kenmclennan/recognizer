@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { sensorProgram } from "../../../cli/test/support/index";
 import groupFile from "../../src/finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 import {
@@ -109,7 +110,7 @@ const findingsFile = (name: string) =>
 
 const STRUCTURE =
   "sensors:\n  structure:\n    duplication: false\n    warnings:\n      orphan: false\n      unused_exports: false\n      private_imports: false\n      long_function: false\n      complexity: false\n";
-const CONFIG = `${STRUCTURE}  alpha:\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\n`;
+const CONFIG = `${STRUCTURE}  alpha:\n    manifest: [recognizer-sense-alpha, manifest]\n`;
 
 const sources = (ids: string[]) =>
   Object.fromEntries(ids.map((id) => [id, TEXTS[id] as string]));
@@ -131,7 +132,7 @@ const made = (
   files: { ...sources(ids), ...files },
   programs: {
     "recognizer-scan-typescript": scanProgram(scan, languages),
-    node: () => ({ started: true, status: 0, stdout: "", stderr: "" }),
+    "recognizer-sense-alpha": sensorProgram("alpha"),
   },
 });
 

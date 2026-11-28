@@ -9,7 +9,7 @@ import {
   type PluginLimits,
   type SensorReport,
 } from "../src/index.js";
-import { createFakes } from "./fakes/container.js";
+import { createFakes, scanOver } from "./fakes/container.js";
 
 const SENSE = ["recognizer", "sense", ""].join("-");
 const DESCRIBE = ["recognizer", "describe", ""].join("-");
@@ -139,7 +139,7 @@ describe("program gaps", () => {
       findProgramGaps(other.ports, { sensors: [custom], install: {} }).map(
         (one) => one.id,
       ),
-    ).toEqual(["sensors:missing:python3"]);
+    ).toEqual(["sensors:missing:mine"]);
   });
 
   it("probes the command a registered sensor runs, never its bare program name", () => {
@@ -176,19 +176,6 @@ describe("program gaps", () => {
         install: {},
       }),
     ).toEqual([]);
-  });
-
-  it("counts a started program with a non-zero status as a gap", () => {
-    const { fakes, ports } = sensing();
-
-    install(fakes, "ruler");
-    ports.sensors.probe = () => ({ started: true, status: 3 });
-
-    expect(
-      findProgramGaps(ports, { sensors: [sensor("ruler")], install: {} }).map(
-        (one) => one.id,
-      ),
-    ).toEqual(["sensors:missing:ruler"]);
   });
 
   it("uses the install map entry when present", () => {
@@ -397,20 +384,33 @@ describe("describer gaps", () => {
     expect(gap?.fix.text).toBe(`install ${DESCRIBE}claude`);
   });
 
-  it("reports a non-reference describer that does not start, and only that", () => {
+  it("names the manifest install line for a describer that does not start, and only that", () => {
     const world = describing(["quill", "run"]);
 
     expect(gapsOf(world)).toEqual([]);
 
     world.fakes.describer.unavailable.add("quill");
 
-    expect(gapsOf(world, true, { quill: "brew install quill" })).toEqual([
+    const [gap, ...rest] = gapsOf(world, true, { quill: "brew install quill" });
+
+    expect(rest).toEqual([]);
+    expect(gap?.id).toBe("describe:arguments");
+    expect(gap?.fix.text).toBe("brew install quill");
+  });
+
+  it("reports describe:unreadable for a describer whose manifest cannot be read", () => {
+    const world = describing(["quill", "run"]);
+
+    world.fakes.describer.unreadableReason =
+      "quill manifest has no prompt_version";
+
+    expect(gapsOf(world)).toEqual([
       {
-        id: "describe:program",
-        line: "the describer program quill does not start",
+        id: "describe:unreadable",
+        line: "the describer's manifest cannot be read",
         needs: ["describe"],
         fix: {
-          text: "brew install quill",
+          text: "quill manifest has no prompt_version",
           command: null,
           cwd: "",
           env: {},
@@ -418,5 +418,56 @@ describe("describer gaps", () => {
         },
       },
     ]);
+  });
+});
+
+describe("install lines from the registry", () => {
+  async function refusedBy(
+    configure: (fakes: ReturnType<typeof createFakes>) => void,
+  ) {
+    const fakes = createFakes();
+
+    fakes.scanners.languages.set("python", {
+      modules: 1,
+      edges: 0,
+      fails: false,
+    });
+    fakes.sensors.unavailable.add("ruler");
+    fakes.sensors.installed.set("ruler", {
+      name: "ruler",
+      runsTests: false,
+      held: false,
+    });
+    configure(fakes);
+
+    const outcome = await scanOver(fakes).start({
+      repository: "/work/repository",
+      mode: "full",
+      describe: false,
+      sensors: [{ name: "ruler" }],
+      analysis: true,
+      ignoreRetiredConfig: false,
+      invocation: [],
+    }).outcome;
+
+    return outcome.status === "refused" ? outcome.gaps : [];
+  }
+
+  it("names the manifest install line as the fix for a registered sensor that does not start", async () => {
+    const gaps = await refusedBy((fakes) => {
+      const ruler = fakes.sensors.installed.get("ruler");
+
+      if (ruler !== undefined) {
+        ruler.install = "brew install ruler";
+      }
+    });
+
+    expect(gaps.map((one) => one.fix.text)).toEqual(["brew install ruler"]);
+  });
+
+  it("falls back to install <program> when no manifest line is readable", async () => {
+    const gaps = await refusedBy(() => {});
+
+    expect(gaps.map((one) => one.fix.text)).toEqual([`install ${SENSE}ruler`]);
   });
 });

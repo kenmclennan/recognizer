@@ -71,11 +71,11 @@ function options(extra: FakeOptions = {}): FakeOptions {
   return {
     commit: "abc123",
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
+    sensorManifests: true,
     ...extra,
+    onPath: ["recognizer-sense-crap", ...(extra.onPath ?? [])],
     files: {
       [`${ROOT}/a.py`]: "",
-      [`${ROOT}/.recognizer/config.yaml`]:
-        "sensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n",
       ...extra.files,
     },
   };
@@ -106,19 +106,6 @@ async function scan(extra: FakeOptions = {}, ...args: string[]) {
 }
 
 describe("scan marker: refusal", () => {
-  it("warns about no unregistered plugin when the run is refused", async () => {
-    const files = { [MARKER]: markerFor(), [PROGRESS]: "line\n" };
-    const { code, fake } = await scan(
-      { files, alivePids: [OTHER_PID] },
-      "--sense",
-      "crap",
-    );
-
-    expect(code).toBe(3);
-    expect(fake.err()).toContain("a scan is already running");
-    expect(fake.err()).not.toContain("not registered");
-  });
-
   it("refuses a second scan while a live marker exists and leaves it untouched", async () => {
     const files = { [MARKER]: markerFor(), [PROGRESS]: "line\n" };
     const { code, fake } = await scan({ files, alivePids: [OTHER_PID] });

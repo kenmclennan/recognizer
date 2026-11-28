@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readConfigArea } from "../../src/index.js";
+import {
+  readConfigArea,
+  registrationFileName,
+  serializeRegistration,
+} from "../../src/index.js";
+import { FakePluginRegistrations } from "../fakes/fake-plugin-registrations.js";
 import { FakeRepositoryChecks } from "../fakes/fake-repository-checks.js";
 
 const ROOT = "/repo";
@@ -18,14 +23,25 @@ function area(
 
   return {
     repository,
-    read: () => readConfigArea(repository, ROOT, options.named ?? false),
+    read: () =>
+      readConfigArea(
+        repository,
+        new FakePluginRegistrations(),
+        ROOT,
+        options.named ?? false,
+      ),
   };
 }
 
 describe("readConfigArea", () => {
   it("reports nothing and the empty registration for an absent config", () => {
     const repository = new FakeRepositoryChecks();
-    const reading = readConfigArea(repository, ROOT, false);
+    const reading = readConfigArea(
+      repository,
+      new FakePluginRegistrations(),
+      ROOT,
+      false,
+    );
 
     expect(reading).toEqual({
       problems: [],
@@ -45,7 +61,12 @@ describe("readConfigArea", () => {
 
     repository.configDocumentValue = { kind: "unparseable", message: "bad" };
 
-    const reading = readConfigArea(repository, ROOT, false);
+    const reading = readConfigArea(
+      repository,
+      new FakePluginRegistrations(),
+      ROOT,
+      false,
+    );
 
     expect(reading).toEqual({
       problems: [
@@ -93,7 +114,12 @@ describe("readConfigArea", () => {
         document: { overlays: {} },
       };
 
-      const reading = readConfigArea(repository, "/my repo's", true);
+      const reading = readConfigArea(
+        repository,
+        new FakePluginRegistrations(),
+        "/my repo's",
+        true,
+      );
 
       expect(reading.problems[0]?.fix.command).toBe(
         "recognizer config --unset overlays --repository '/my repo'\\''s'",
@@ -203,25 +229,6 @@ describe("readConfigArea", () => {
     expect(reading.registered).toEqual({ skipped: "config has problems" });
   });
 
-  it("reports a sensor with no manifest, repeating the repository in each command", () => {
-    const reading = area(
-      { sensors: { mine: { command: [`${SENSE}mine`, "run"] } } },
-      { named: true },
-    ).read();
-
-    expect(reading.problems).toEqual([
-      {
-        code: "sensor-manifest-missing",
-        subject: "mine",
-        line: "sensors.mine names no manifest command, so it declares nothing (no suites, no scope, no check)",
-        fix: {
-          text: `recognizer config --add sensors.mine.manifest ${SENSE}mine --repository /repo && recognizer config --add sensors.mine.manifest manifest --repository /repo`,
-          command: `recognizer config --add sensors.mine.manifest ${SENSE}mine --repository /repo && recognizer config --add sensors.mine.manifest manifest --repository /repo`,
-        },
-      },
-    ]);
-  });
-
   it("skips the manifest check when a schema message is present", () => {
     const reading = area(
       { sensors: { mine: { command: [`${SENSE}mine`] } } },
@@ -253,22 +260,52 @@ describe("readConfigArea", () => {
     ]);
   });
 
-  it("registers specs, named scanners, installs, sensors and the describer", () => {
-    const reading = area({
-      scanners: { typescript: "ts" },
-      install: { [`${SENSE}b`]: "brew install b" },
-      describer: { command: [`${DESCRIBE}x`, "run"] },
-      sensors: {
-        a: {
-          command: [`${SENSE}a`, "run", "--settings", '{"k":1}'],
-          manifest: [`${SENSE}a`, "manifest"],
-        },
-        b: { command: [`${SENSE}b`, "run"] },
-        structure: { duplication: false },
-      },
-    }).read();
+  it("registers specs from the registry, with the settings the config holds, and the describer", () => {
+    const repository = new FakeRepositoryChecks();
+    const registrations = new FakePluginRegistrations();
 
-    expect(reading.problems.map((one) => one.subject)).toEqual(["b"]);
+    repository.configDocumentValue = {
+      kind: "parsed",
+      document: {
+        scanners: { typescript: "ts" },
+        install: { [`${SENSE}b`]: "brew install b" },
+        describer: { command: [`${DESCRIBE}other`, "run"] },
+        sensors: {
+          a: { k: 1 },
+          gone: { command: [`${SENSE}gone`, "run"] },
+          structure: { duplication: false },
+        },
+      },
+    };
+
+    for (const name of ["a", "b", "structure"]) {
+      registrations.place(
+        "user",
+        registrationFileName("sensor", name),
+        serializeRegistration({
+          kind: "sensor",
+          name,
+          command: [`${SENSE}${name}`],
+          manifest: [`${SENSE}${name}`, "manifest"],
+        }),
+        1,
+      );
+    }
+
+    registrations.place(
+      "user",
+      registrationFileName("describer", "x"),
+      serializeRegistration({
+        kind: "describer",
+        name: "x",
+        command: [`${DESCRIBE}x`],
+        manifest: [`${DESCRIBE}x`, "manifest"],
+      }),
+      1,
+    );
+
+    const reading = readConfigArea(repository, registrations, ROOT, false);
+
     expect(reading.registered).toEqual({
       specs: [
         {
@@ -276,9 +313,41 @@ describe("readConfigArea", () => {
           subject: "a",
           name: "a",
           program: `${SENSE}a`,
-          command: [`${SENSE}a`, "run", "--settings", '{"k":1}'],
+          command: [
+            `${SENSE}a`,
+            "run",
+            "--repository",
+            "{repository}",
+            "--commit",
+            "{commit}",
+            "--output",
+            "{output}",
+            "--settings",
+            '{"k":1}',
+          ],
           manifest: [`${SENSE}a`, "manifest"],
           settings: { k: 1 },
+          installLine: null,
+        },
+        {
+          kind: "sensor",
+          subject: "b",
+          name: "b",
+          program: `${SENSE}b`,
+          command: [
+            `${SENSE}b`,
+            "run",
+            "--repository",
+            "{repository}",
+            "--commit",
+            "{commit}",
+            "--output",
+            "{output}",
+            "--settings",
+            "{}",
+          ],
+          manifest: [`${SENSE}b`, "manifest"],
+          settings: {},
           installLine: null,
         },
         {
@@ -286,16 +355,41 @@ describe("readConfigArea", () => {
           subject: "describer",
           name: "x",
           program: `${DESCRIBE}x`,
-          command: [`${DESCRIBE}x`, "run"],
+          command: [`${DESCRIBE}x`, "run", "--model", "{model}", "{request}"],
+          manifest: [`${DESCRIBE}x`, "manifest"],
           settings: null,
           installLine: null,
         },
       ],
       named: { typescript: "ts" },
-      install: { [`${SENSE}b`]: "brew install b" },
+      install: {},
       sensors: ["a", "b"],
       describer: true,
     });
+  });
+
+  it("lists a sensor the registry holds even when the config does not name it", () => {
+    const repository = new FakeRepositoryChecks();
+    const registrations = new FakePluginRegistrations();
+
+    repository.configDocumentValue = { kind: "parsed", document: {} };
+    registrations.place(
+      "user",
+      registrationFileName("sensor", "solo"),
+      serializeRegistration({
+        kind: "sensor",
+        name: "solo",
+        command: [`${SENSE}solo`],
+        manifest: [`${SENSE}solo`, "manifest"],
+      }),
+      1,
+    );
+
+    const reading = readConfigArea(repository, registrations, ROOT, false);
+
+    expect(
+      "skipped" in reading.registered ? [] : reading.registered.sensors,
+    ).toEqual(["solo"]);
   });
 
   describe("published keys are read where they always were", () => {

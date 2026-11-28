@@ -15,12 +15,11 @@ export interface InventedSensor {
   held: boolean;
   scoped?: boolean;
   display?: string;
-  registered?: boolean;
+  install?: string;
   listed?: boolean;
   unreadable?: string;
   manifestCommand?: string[];
   runCommand?: string[];
-  withoutManifest?: boolean;
 }
 
 export interface ScriptedReport {

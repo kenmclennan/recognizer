@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import { scanHistory } from "@recognizer/core";
 import REASONS from "../../../fixtures/sensor-reasons/states.json";
 import { readRunRecordFiles } from "../../cli/src/serve/refusals";
@@ -52,13 +51,14 @@ const SCAN = {
 
 const DESCRIBER =
   "describer:\n  command: [describer, run, '--model', '{model}', '{request}']\n  version: v1\n";
-const COMMAND = (name: string, script: string) =>
-  `  ${name}:\n    command: [node, '{repository}/${script}', '{commit}', '{output}']\n`;
 const SENSORS =
   "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n" +
-  COMMAND("tally", "t.mjs") +
-  COMMAND("alpha", "a.mjs") +
-  COMMAND("beta", "b.mjs");
+  ["tally", "alpha", "beta"]
+    .map(
+      (name) =>
+        `  ${name}:\n    manifest: [recognizer-sense-${name}, manifest]\n`,
+    )
+    .join("");
 const CONFIG = DESCRIBER + SENSORS;
 const SUITE_CONFIG = `${CONFIG}tests:
   - name: unit
@@ -115,25 +115,21 @@ const mutationProgram = (): Program =>
       log_path: ".recognizer/cache/coverage/last-run.log",
     },
   );
-const SCRIPTS: Record<string, string> = {
-  "t.mjs": "tally",
-  "a.mjs": "alpha",
-  "b.mjs": "beta",
-};
-const commandSensors =
-  (by: Record<string, Program> = {}): Program =>
-  (call) => {
-    const name = SCRIPTS[basename(call.args[0] ?? "")] as string;
-    const program = by[name] ?? sensorProgram(name);
-
-    return program(
-      Object.create(call, {
-        args: {
-          value: ["run", "--commit", call.args[1], "--output", call.args[2]],
-        },
-      }),
-    );
-  };
+const plain = (name: string, program: Program): Program =>
+  withManifest(program, {
+    display: name,
+    description: `Runs ${name}.`,
+    expansion: undefined,
+  });
+const commandSensors = (
+  by: Record<string, Program> = {},
+): Record<string, Program> =>
+  Object.fromEntries(
+    ["tally", "alpha", "beta"].map((name) => [
+      `recognizer-sense-${name}`,
+      plain(name, by[name] ?? sensorProgram(name)),
+    ]),
+  );
 const stamping =
   (name: string, program: Program): Program =>
   (call) => {
@@ -199,8 +195,8 @@ const made = (one: Made = {}): LookScenario => ({
     "recognizer-scan-typescript": scanProgram(SCAN),
     "recognizer-sense-crap": crapProgram(),
     "recognizer-sense-mutation": mutationProgram(),
-    node: commandSensors(one.sensors),
-    describer: describerProgram(one.describer),
+    ...commandSensors(one.sensors),
+    "recognizer-describe-fake": describerProgram(one.describer),
     ...one.programs,
   },
   ticks: { ...TICKS, ...one.ticks },
@@ -313,7 +309,6 @@ const SCENARIOS1 = (): Record<string, LookScenario> => ({
       ],
     },
   }),
-  unregistered: made({ config: "sensors:\n  crap: {}\n" }),
 });
 const DESCRIBED = JSON.stringify({
   schema_version: 1,
@@ -326,7 +321,13 @@ const DESCRIBED = JSON.stringify({
       {
         line: "Does a thing.",
         source_hash: hash,
-        describer: ["describer", "run", "--model", "{model}", "{request}"],
+        describer: [
+          "/fake-bin/recognizer-describe-fake",
+          "run",
+          "--model",
+          "{model}",
+          "{request}",
+        ],
         version: "v1",
       },
     ]),
@@ -463,7 +464,6 @@ const untilPlugin = async (root: Root, name: string, state: string) => {
 
     await root.service.signal(1000);
   }
-
   throw new Error(`${name} never reached ${state}`);
 };
 
@@ -983,11 +983,11 @@ export const _MUTED = "rgb(145, 152, 161)";
 export const NAMES = [
   "Structural analysis",
   "Descriptions",
+  "alpha",
+  "beta",
   "C.R.A.P.",
   "Mutation",
   "tally",
-  "alpha",
-  "beta",
 ];
 
 export const _names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
@@ -1076,13 +1076,6 @@ await group(["settingsError"], async () => {
   };
 });
 
-await group(["unregistered", "unregisteredSummary"], async () => {
-  const unregMount = await draw("unregistered");
-  await unregMount.openScan();
-  const bareKeys = () => unregMount.all(".scan-row").map((n) => n.dataset.sensor);
-  facts.unregistered = { keys: bareKeys(), fixLines: unregMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
-  facts.unregisteredSummary = unregMount.q(".summary").textContent;
-});
 `;
 
 export const GROUPS2A = `

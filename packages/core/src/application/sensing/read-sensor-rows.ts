@@ -10,9 +10,6 @@ export function readSensorRows(
   const suites = (ports.config.tests(config) ?? []).map(
     ({ name, language }) => ({ name, language }),
   );
-  const names = new Set(
-    ports.config.registeredSensors(config).map(({ name }) => name),
-  );
   const read = ports.catalog.readInstalled();
   const rows: SensorRow[] = read.sensors
     .filter(({ listed }) => listed)
@@ -22,22 +19,8 @@ export function readSensorRows(
       display: one.display,
       runsTests: one.runs_tests,
       scoped: one.scoped,
-      registered: names.has(one.name),
+      registered: true,
       ...(one.runs_tests && suites.length > 0 ? { suites } : {}),
     }));
-  const known = new Set(read.sensors.map(({ name }) => name));
-
-  for (const name of names) {
-    if (!known.has(name)) {
-      rows.push({
-        name,
-        display: name,
-        runsTests: false,
-        scoped: false,
-        registered: true,
-      });
-    }
-  }
-
   return rows;
 }

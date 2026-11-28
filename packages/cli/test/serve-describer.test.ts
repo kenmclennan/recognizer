@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { installFakeDescriber } from "./fake-describer-shim.js";
 import { Serve } from "./serve-harness.js";
 
 const TIMEOUT = scaledTimeout(60_000);
@@ -23,15 +24,13 @@ describe("recognizer serve: describer.read", () => {
   it(
     "replies with the registered describer's command and version",
     async () => {
-      const repository = repositoryWith({
-        "config.yaml":
-          "describer:\n  command: [describe, '{request}']\n  version: v7\n",
-      });
-      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const repository = repositoryWith({});
+      const { directory, program } = installFakeDescriber(repository, "v7");
+      const serve = new Serve(directory);
       const reply = await serve.call("describer.read", { repository });
 
       expect(reply.ok).toEqual({
-        command: ["describe", "{request}"],
+        command: [program, "run", "--model", "{model}", "{request}"],
         version: "v7",
       });
 
@@ -44,7 +43,6 @@ describe("recognizer serve: describer.read", () => {
     "replies with the use case's message when the responsibilities file is invalid",
     async () => {
       const repository = repositoryWith({
-        "config.yaml": "describer:\n  command: [describe]\n  version: v7\n",
         "responsibilities.json": "{}",
       });
       const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));

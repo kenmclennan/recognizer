@@ -13,10 +13,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, run } from "../src/cli.js";
 import { readSource } from "../src/module-source.js";
+import { installFakeDescriber } from "./fake-describer-shim.js";
 import { capture, REPO } from "./helpers.js";
 import { useScannerShim } from "./scan-helpers.js";
 
-const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
 const DOMAIN = "app/src/main/kotlin/shop/domain";
 const ORDER = `${DOMAIN}/Order.kt`;
 const CURRENCY = `${DOMAIN}/Currency.kt`;
@@ -42,20 +42,10 @@ function repository(): string {
   git(root, "commit", "-q", "-m", "sample");
   writeScan(root);
 
-  const command = [
-    "node",
-    FAKE,
-    "run",
-    "{repository}",
+  installFakeDescriber(root, "v1", [
     "--copy",
     `${root}/.recognizer/request.json`,
-    "{request}",
-  ];
-
-  writeFileSync(
-    join(root, ".recognizer/config.yaml"),
-    `describer:\n  command: ${JSON.stringify(command)}\n  version: "v1"\n`,
-  );
+  ]);
 
   return root;
 }

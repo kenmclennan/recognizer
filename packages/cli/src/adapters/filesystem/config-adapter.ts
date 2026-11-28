@@ -14,8 +14,7 @@ import {
   type ConfigRead,
   readsAnyConfig,
   readsSensors,
-  registeredSensorNamesIn,
-  registeredSensors,
+  sensorSettingsOf,
 } from "../../config-parse.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
 import { readRepositoryText, saveRepositoryText } from "./repository-text.js";
@@ -28,14 +27,12 @@ export class ConfigAdapter implements ConfigRepository {
 
   scannerSetup(root: string): {
     scanners: Record<string, string>;
-    install: Record<string, string>;
     describerBuild: DescriberBuild | null;
   } {
-    const registered = readConfig(this.io, root, ["scanners", "install"]);
+    const registered = readConfig(this.io, root, ["scanners"]);
 
     return {
       scanners: registered?.scanners ?? {},
-      install: registered?.install ?? {},
       describerBuild: this.describerBuild(root),
     };
   }
@@ -68,10 +65,11 @@ export class ConfigAdapter implements ConfigRepository {
     return resolveStructureSettings(readConfig(this.io, root, ["sensors"]));
   }
 
-  registeredSensors(
+  sensorSettings(
     config: ConfigDocument | null,
-  ): { name: string; command: string[]; manifest?: string[] }[] {
-    return registeredSensors(config as unknown as Config | null);
+    name: string,
+  ): Record<string, unknown> {
+    return sensorSettingsOf(config as unknown as Config | null, name);
   }
 
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined {
@@ -83,20 +81,6 @@ export class ConfigAdapter implements ConfigRepository {
       "sensors",
       "tests",
     ]) as unknown as ConfigDocument | null;
-  }
-
-  sensorNames(root: string): string[] {
-    return registeredSensors(readConfig(this.io, root, ["sensors"])).map(
-      ({ name }) => name,
-    );
-  }
-
-  sensorNamesDespiteErrors(root: string): string[] {
-    const file = configFile(root);
-
-    return this.io.exists(file)
-      ? registeredSensorNamesIn(this.io.readFile(file))
-      : [];
   }
 
   text(root: string): RepositoryText {

@@ -113,22 +113,6 @@ Feature: Scanning a repository
     Then the scan fails as an invalid request saying the file scope is empty
     And nothing is extracted
 
-  Scenario: A sensor with no manifest and configured suites is noticed and reported as not measured
-    Given a repository with Alpha files
-    And the suites "unit" and "slow" are configured
-    And a Mine sensor that runs tests is registered without a manifest
-    When a full scan runs ticking the Mine sensor
-    Then the scan said the notice for "mine" before the sensor ran
-    And the scan said it did not measure "mine" after the sensor ran
-    And the Mine sensor receives no suites
-
-  Scenario: A sensor with no manifest and no configured suites is noticed but not reported as unmeasured
-    Given a repository with Alpha files
-    And a Mine sensor that runs tests is registered without a manifest
-    When a full scan runs ticking the Mine sensor
-    Then the scan said the notice for "mine" before the sensor ran
-    And the scan did not say it did not measure "mine"
-
   Scenario: A sensor with a manifest gets neither line
     Given a repository with Alpha files
     And the suites "unit" and "slow" are configured

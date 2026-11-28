@@ -10,6 +10,7 @@ import {
 } from "./support.js";
 
 const SENSORS = ["tally", "margin", "ledger"];
+const SORTED = [...SENSORS].sort();
 
 function started(name: string): RunReport {
   return { kind: "plugin-started", name, progress: null };
@@ -59,7 +60,7 @@ describe("repository state holder", () => {
     let finishedAt = -1;
 
     seen.forEach((state, index) => {
-      expect(state.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+      expect(state.registry.entries.map(({ name }) => name)).toEqual(SORTED);
 
       if (state.results.tally?.results.length === 1 && finishedAt === -1) {
         finishedAt = index;
@@ -106,7 +107,7 @@ describe("repository state holder", () => {
 
     expect(after.revision).toBe(before.revision + 1);
     expect(after.registry.catalog.state).toBe("unreadable");
-    expect(after.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+    expect(after.registry.entries.map(({ name }) => name)).toEqual(SORTED);
     expect(after.registry.entries[0]?.manifest).not.toBeNull();
     expect(after.results).toEqual(before.results);
   });
@@ -120,6 +121,7 @@ describe("repository state holder", () => {
     const before = holder.current();
 
     fakes.sensors.installed.delete("ledger");
+    fakes.catalog.named.push("ledger");
     fakes.catalog.unreadable.push("/opt/plugins");
     holder.refresh();
 
@@ -127,7 +129,7 @@ describe("repository state holder", () => {
 
     expect(after.registry.catalog.state).toBe("read");
     expect(after.registry).toEqual(before.registry);
-    expect(after.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+    expect(after.registry.entries.map(({ name }) => name)).toEqual(SORTED);
     expect(
       after.registry.entries.every(({ manifest }) => manifest !== null),
     ).toBe(true);
@@ -143,7 +145,7 @@ describe("repository state holder", () => {
     const state = holder.current();
 
     expect(state.registry.catalog.state).toBe("read");
-    expect(state.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+    expect(state.registry.entries.map(({ name }) => name)).toEqual(SORTED);
     expect(
       state.registry.entries.every(({ manifest }) => manifest !== null),
     ).toBe(true);
@@ -153,7 +155,7 @@ describe("repository state holder", () => {
     const fakes = fakesWith(...SENSORS);
     const holder = holderOver(fakes);
 
-    fakes.config.uninstalled.push("absent");
+    fakes.catalog.named.push("absent");
     fakes.catalog.unreadable.push("/opt/plugins");
     holder.refresh();
 
@@ -161,8 +163,8 @@ describe("repository state holder", () => {
 
     expect(state.registry.catalog.state).toBe("unreadable");
     expect(state.registry.entries.map(({ name }) => name)).toEqual([
-      ...SENSORS,
       "absent",
+      ...SORTED,
     ]);
   });
 
@@ -270,7 +272,7 @@ describe("repository state holder", () => {
     expect(fakes.active.settled).toEqual(["run-1"]);
   });
 
-  it("a config change republishes the registry", () => {
+  it("a change to the registered plugins republishes the registry", () => {
     const fakes = fakesWith(...SENSORS);
     const holder = holderOver(fakes);
 
@@ -279,15 +281,11 @@ describe("repository state holder", () => {
 
     const before = holder.current();
 
-    expect(Object.keys(before.results)).toEqual(SENSORS);
+    expect(Object.keys(before.results)).toEqual(SORTED);
 
     const sensor = fakes.sensors.installed.get("margin");
 
-    if (sensor !== undefined) {
-      sensor.registered = false;
-    }
-
-    fakes.config.held = "sensors: {}";
+    fakes.sensors.installed.delete("margin");
     holder.refresh();
 
     const after = holder.current();
@@ -297,41 +295,37 @@ describe("repository state holder", () => {
       after.registry.entries
         .filter(({ registered }) => registered)
         .map(({ name }) => name),
-    ).toEqual(["tally", "ledger"]);
-    expect(Object.keys(after.results)).toEqual(["tally", "ledger"]);
-    expect(Object.keys(after.freshness)).toEqual(["tally", "ledger"]);
+    ).toEqual(["ledger", "tally"]);
+    expect(Object.keys(after.results)).toEqual(["ledger", "tally"]);
+    expect(Object.keys(after.freshness)).toEqual(["ledger", "tally"]);
     expect(fakes.findings.stored.has("margin")).toBe(true);
     expect(fakes.findings.removed).toEqual([]);
 
     if (sensor !== undefined) {
-      sensor.registered = true;
+      fakes.sensors.installed.set("margin", sensor);
     }
 
-    fakes.config.held = "sensors: {margin: {}}";
     holder.refresh();
 
     expect(holder.current().results.margin?.results).toHaveLength(1);
   });
 
-  it("a settings error on the first read still lists every registered plugin with the error as its reason", () => {
+  it("a settings error on the first read leaves every registered plugin listed with no reason", () => {
     const fakes = fakesWith(...SENSORS);
 
-    fakes.config.sensors = [...SENSORS];
     fakes.config.failSensorConfig = "tests: suite unit needs a language";
 
     const state = holderOver(fakes).current();
     const rows = state.registry.entries.filter(({ registered }) => registered);
 
-    expect(rows.map(({ name }) => name)).toEqual(SENSORS);
+    expect(rows.map(({ name }) => name)).toEqual(SORTED);
 
     for (const row of rows) {
-      expect(row.reason).toBe(
-        "the settings cannot be read: tests: suite unit needs a language",
-      );
+      expect(row.reason).toBeNull();
     }
   });
 
-  it("a config that cannot be read keeps the registry", () => {
+  it("a config that cannot be read leaves the registry as it was", () => {
     const fakes = fakesWith(...SENSORS);
     const holder = holderOver(fakes);
 
@@ -344,11 +338,8 @@ describe("repository state holder", () => {
 
     const after = holder.current();
 
-    expect(after.registry.catalog.state).toBe("unreadable");
-    expect(after.registry.entries.map(({ name }) => name)).toEqual(
-      before.registry.entries.map(({ name }) => name),
-    );
-    expect(Object.keys(after.results)).toEqual(SENSORS);
+    expect(after.registry).toEqual(before.registry);
+    expect(Object.keys(after.results)).toEqual(SORTED);
   });
 
   it("a commit-scoped run keeps its results beside the working tree's", () => {
@@ -1075,27 +1066,5 @@ describe("repository state holder", () => {
 
       expect(remainingOf(holder)).toEqual({ ms: null, silent: ["crap"] });
     });
-  });
-
-  it("a sensor registered by absolute path takes runsTests from its own manifest, not from a same-named program on PATH", () => {
-    const fakes = fakesWith("crap");
-
-    fakes.sensors.installed.set("crap", {
-      name: "crap",
-      runsTests: false,
-      held: false,
-      display: "C.R.A.P.",
-      manifestCommand: ["/opt/bin/crap", "manifest"],
-    });
-    fakes.catalog.pathRunsTests.set("crap", true);
-
-    const holder = holderOver(fakes);
-
-    holder.refresh();
-
-    const state = holder.current();
-    const entry = state.registry.entries.find(({ name }) => name === "crap");
-
-    expect(entry?.manifest?.runsTests).toBe(false);
   });
 });

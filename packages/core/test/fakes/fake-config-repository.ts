@@ -7,8 +7,6 @@ import {
   type RepositoryText,
   type StructureSettings,
   type SuiteEntry,
-  sensorCommand,
-  sensorProgram,
 } from "../../src/index.js";
 import type { FakeSensors } from "./fake-sensors.js";
 
@@ -16,19 +14,17 @@ const DOCUMENT = {} as ConfigDocument;
 
 export class FakeConfigRepository implements ConfigRepository {
   present = true;
-  uninstalled: string[] = [];
   settings: StructureSettings | "off" = DEFAULT_STRUCTURE_SETTINGS;
-  sensors: string[] = [];
+  sensorSettingsByName: Record<string, Record<string, unknown>> = {};
   failSensorConfig: string | null = null;
 
   constructor(private readonly invented: FakeSensors) {}
 
   scannerSetup(): {
     scanners: Record<string, string>;
-    install: Record<string, string>;
     describerBuild: DescriberBuild | null;
   } {
-    return { scanners: {}, install: {}, describerBuild: null };
+    return { scanners: {}, describerBuild: null };
   }
 
   run(): ConfigDocument | null {
@@ -47,28 +43,11 @@ export class FakeConfigRepository implements ConfigRepository {
     return this.document();
   }
 
-  registeredSensors(
+  sensorSettings(
     config: ConfigDocument | null,
-  ): { name: string; command: string[]; manifest?: string[] }[] {
-    return config === null
-      ? []
-      : [
-          ...[...this.invented.installed.values()]
-            .filter((sensor) => sensor.registered ?? true)
-            .map((sensor) => ({
-              name: sensor.name,
-              command: sensor.runCommand ?? sensorCommand(sensor.name, {}),
-              ...(sensor.withoutManifest === true
-                ? {}
-                : {
-                    manifest: sensor.manifestCommand ?? [
-                      sensorProgram(sensor.name),
-                      "manifest",
-                    ],
-                  }),
-            })),
-          ...this.uninstalled.map((name) => ({ name, command: [name] })),
-        ];
+    name: string,
+  ): Record<string, unknown> {
+    return config === null ? {} : (this.sensorSettingsByName[name] ?? {});
   }
 
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined {
@@ -116,13 +95,5 @@ export class FakeConfigRepository implements ConfigRepository {
 
   structureSettings(): StructureSettings | "off" {
     return this.settings;
-  }
-
-  sensorNames(): string[] {
-    return [...this.sensors];
-  }
-
-  sensorNamesDespiteErrors(): string[] {
-    return [...this.sensors];
   }
 }

@@ -40,6 +40,7 @@ export function checkPortsOf(fakes: Fakes): CheckPorts {
   return {
     analysis: fakes.analysis,
     config: fakes.config,
+    catalog: fakes.catalog,
     findings: fakes.findings,
     policy: fakes.policy,
     baselines: fakes.baseline,
