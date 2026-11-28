@@ -4,15 +4,42 @@ import {
   type Step,
   stepsFor,
 } from "../../domain/configuration/edit-step.js";
+import {
+  descentRefusal,
+  dropsEmptyHolder,
+  forbidRuleRemoval,
+  forbidRuleText,
+  keyIsSectionRefusal,
+  notAListRefusal,
+  notASectionRefusal,
+  occupantRefusal,
+  resolveKey,
+  resolveSection,
+  retiredUnsetDecision,
+  retiredWriteRefusal,
+  sectionUnsetRefusal,
+  switchesToMap,
+  unreachableRefusal,
+  valueCountRefusal,
+} from "../../domain/configuration/key-edit-rules.js";
+import {
+  entryNameFor,
+  isForbidList,
+  isUnlistableName,
+  renderListItem,
+  renderScalar,
+} from "../../domain/configuration/key-listing-rules.js";
+import {
+  parseKeyPath,
+  splitKeyPath,
+} from "../../domain/configuration/key-path.js";
 import { typedValue } from "../../domain/configuration/key-value.js";
 import {
-  findKey,
   findSection,
   type PublishedKey,
   type PublishedKeys,
   type PublishedSection,
 } from "../../domain/configuration/published-keys.js";
-import { retiredKeyFor } from "../../domain/configuration/retired-keys.js";
 import type {
   KeyedDocument,
   KeyedList,
@@ -53,18 +80,6 @@ function open(keyed: KeyedText, text: string, subject: string): Opened {
   const opened = keyed.open(text, subject);
 
   return "refused" in opened ? opened : { doc: opened };
-}
-
-function describeNode(node: KeyedNode): string {
-  if (node.kind === "section") {
-    return "a section";
-  }
-
-  if (node.kind === "list") {
-    return "a list";
-  }
-
-  return "a scalar";
 }
 
 function entryIndex(list: KeyedList, step: Step & { kind: "entry" }): number {
@@ -118,7 +133,12 @@ function descend(
         .join(".");
 
       return {
-        refused: `${parent === "" ? `the ${subject}` : parent} is ${describeNode(node)}, not ${wantSeq ? "a list of entries" : "a section"}`,
+        refused: descentRefusal({
+          parent,
+          subject,
+          found: node.kind,
+          wantsList: wantSeq,
+        }),
       };
     }
 
@@ -170,45 +190,24 @@ function lastStep(steps: Step[]): Step {
   return steps[steps.length - 1] as Step;
 }
 
-function keyOf(
-  published: PublishedKeys,
-  typed: string[],
-): { found: PublishedKey } | { reason: string } {
-  const key = findKey(published, typed);
-
-  if ("found" in key) {
-    return key;
-  }
-
-  const section = findSection(published, typed);
-
-  if ("found" in section) {
-    return { reason: `${typed.join(".")} is a section, not a key` };
-  }
-
-  return { reason: key.reason };
-}
-
 function prepared(
   keyed: KeyedText,
   published: PublishedKeys,
   key: string,
   text: string,
 ): { typed: string[]; entry: PublishedKey; doc: KeyedDocument } | EditOutcome {
-  const typed = key.split(".");
+  const parsed = parseKeyPath(key, "key");
 
-  if (typed.includes("")) {
-    return refuse("a key is dotted names with none empty");
+  if ("reason" in parsed) {
+    return refuse(parsed.reason);
   }
 
-  const entry = keyOf(published, typed);
-  const retired = retiredKeyFor(key);
+  const typed = parsed.path;
+  const entry = resolveKey(published, typed);
+  const retired = retiredWriteRefusal(key, "found" in entry);
 
-  if (
-    retired !== undefined &&
-    ("found" in entry || key !== retired.path.join("."))
-  ) {
-    return refuse(retired.message);
+  if (retired !== null) {
+    return refuse(retired);
   }
 
   if (!("found" in entry)) {
@@ -243,8 +242,10 @@ export function setKeyValue(
 
   const { typed, entry, doc } = base;
 
-  if (entry.multi === true) {
-    return refuse(`${key} holds a list; add an item with --add`);
+  const countRefusal = valueCountRefusal("set", key, entry.multi === true);
+
+  if (countRefusal !== null) {
+    return refuse(countRefusal);
   }
 
   const value = typedValue(entry, raw);
@@ -261,26 +262,21 @@ export function setKeyValue(
   }
 
   if (!("container" in descent) || descent.container.kind !== "section") {
-    return refuse(`${key} cannot be set here`);
+    return refuse(unreachableRefusal("set", key));
   }
 
   const map = descent.container;
   const name = lastStep(steps).name;
   const existing = map.get(name);
 
-  const switchOverMap =
-    existing.kind === "section" &&
-    entry.type === "boolean" &&
-    inWarnings(steps, steps.length);
+  const occupied = occupantRefusal(
+    key,
+    existing.kind,
+    switchesToMap(existing.kind, entry.type, steps),
+  );
 
-  if (
-    existing.kind !== "empty" &&
-    existing.kind !== "scalar" &&
-    !switchOverMap
-  ) {
-    return refuse(
-      `${key} is ${describeNode(existing)}; ${existing.kind === "section" ? "remove it with --remove-section first" : "remove it with --unset first"}`,
-    );
+  if (occupied !== null) {
+    return refuse(occupied);
   }
 
   const conflict = guardRegistration(published, typed, entry, map.names());
@@ -313,8 +309,10 @@ export function addKeyValue(
 
   const { typed, entry, doc } = base;
 
-  if (entry.multi !== true) {
-    return refuse(`${key} holds one value; set it without --add`);
+  const countRefusal = valueCountRefusal("add", key, entry.multi === true);
+
+  if (countRefusal !== null) {
+    return refuse(countRefusal);
   }
 
   const value = typedValue(entry, raw);
@@ -331,7 +329,7 @@ export function addKeyValue(
   }
 
   if (!("container" in descent) || descent.container.kind !== "section") {
-    return refuse(`${key} cannot be added to here`);
+    return refuse(unreachableRefusal("add", key));
   }
 
   const map = descent.container;
@@ -350,7 +348,7 @@ export function addKeyValue(
   }
 
   if (existing.kind !== "list") {
-    return refuse(`${key} is ${describeNode(existing)}, not a list`);
+    return refuse(notAListRefusal(key, existing.kind));
   }
 
   const present = existing
@@ -424,7 +422,7 @@ function unsetForbidRule(
   existing: KeyedList,
   raw: string,
 ): EditOutcome {
-  const wanted = raw.replace(/^forbid=/, "");
+  const wanted = forbidRuleText(raw);
 
   const at = existing
     .items()
@@ -450,23 +448,21 @@ export function unsetKeyValue(
   key: string,
   raw?: string,
 ): EditOutcome {
-  const typed = key.split(".");
-  const retired = retiredKeyFor(key);
+  const typed = splitKeyPath(key);
+  const retired = retiredUnsetDecision(key, raw);
 
-  if (retired !== undefined) {
-    return raw === undefined && key === retired.path.join(".")
-      ? unsetRetired(keyed, text, retired.path)
-      : refuse(retired.message);
+  if (retired.kind === "unset-retired") {
+    return unsetRetired(keyed, text, retired.path);
   }
 
-  const entry = keyOf(published, typed);
+  if (retired.kind === "refused") {
+    return refuse(retired.reason);
+  }
+
+  const entry = resolveKey(published, typed);
 
   if (!("found" in entry)) {
-    return refuse(
-      entry.reason.endsWith("is a section, not a key")
-        ? `${key} is a section; remove it with --remove-section`
-        : entry.reason,
-    );
+    return refuse(entry.isSection ? sectionUnsetRefusal(key) : entry.reason);
   }
 
   const opened = open(keyed, text, published.subject);
@@ -496,7 +492,7 @@ export function unsetKeyValue(
   }
 
   if (existing.kind === "section") {
-    return refuse(`${key} is a section; remove it with --remove-section`);
+    return refuse(sectionUnsetRefusal(key));
   }
 
   if (raw === undefined) {
@@ -505,7 +501,7 @@ export function unsetKeyValue(
     if (
       map.names().length === 0 &&
       descent.holder !== null &&
-      (inWarnings(steps, steps.length - 1) || steps[0]?.name === "describer")
+      dropsEmptyHolder(steps)
     ) {
       descent.holder.section.remove(descent.holder.name);
     }
@@ -513,15 +509,19 @@ export function unsetKeyValue(
     return { status: "ok", text: doc.emit() };
   }
 
-  if (entry.found.multi !== true) {
-    return refuse(`${key} holds one value; unset it without a value`);
+  const countRefusal = valueCountRefusal(
+    "unset",
+    key,
+    entry.found.multi === true,
+  );
+
+  if (countRefusal !== null) {
+    return refuse(countRefusal);
   }
 
   if (
-    published.subject === "policy" &&
-    key === "forbid" &&
     existing.kind === "list" &&
-    (raw.startsWith("forbid={") || raw.startsWith("{"))
+    forbidRuleRemoval(published.subject, key, existing.kind, raw)
   ) {
     return unsetForbidRule(doc, text, map, name, existing, raw);
   }
@@ -557,25 +557,18 @@ function sectionOf(
   published: PublishedKeys,
   section: string,
 ): { typed: string[]; found: PublishedSection } | EditOutcome {
-  const typed = section.split(".");
+  const parsed = parseKeyPath(section, "section");
 
-  if (typed.includes("")) {
-    return refuse("a section is dotted names with none empty");
+  if ("reason" in parsed) {
+    return refuse(parsed.reason);
   }
 
-  const found = findSection(published, typed);
+  const typed = parsed.path;
+  const found = resolveSection(published, section, typed);
 
-  if ("found" in found) {
-    return { typed, found: found.found };
-  }
-
-  const key = findKey(published, typed);
-
-  return refuse(
-    "found" in key
-      ? `${section} is a key, not a section; remove it with --unset`
-      : found.reason,
-  );
+  return "found" in found
+    ? { typed, found: found.found }
+    : refuse(found.reason);
 }
 
 export function removeKeySection(
@@ -681,7 +674,7 @@ export function addKeySection(
       }
 
       if (existing.kind !== "empty") {
-        return refuse(`${section} is ${describeNode(existing)}, not a section`);
+        return refuse(notASectionRefusal(section, existing.kind));
       }
     }
   }
@@ -693,7 +686,7 @@ export function addKeySection(
   }
 
   if (!("container" in descent)) {
-    return refuse(`${section} cannot be added here`);
+    return refuse(unreachableRefusal("add-section", section));
   }
 
   if (step.kind === "key") {
@@ -713,8 +706,8 @@ export function readKeyValue(
   published: PublishedKeys,
   key: string,
 ): KeyReadOutcome {
-  const typed = key.split(".");
-  const entry = keyOf(published, typed);
+  const typed = splitKeyPath(key);
+  const entry = resolveKey(published, typed);
 
   if (!("found" in entry)) {
     return refuse(entry.reason);
@@ -750,45 +743,15 @@ export function readKeyValue(
   if (value.kind === "list") {
     return {
       status: "ok",
-      lines: value.items().map((item) => itemText(item)),
+      lines: value.items().map((item) => renderListItem(item)),
     };
   }
 
-  return refuse(`${key} is a section, not a key`);
-}
-
-function itemText(item: KeyedNode): string {
-  if (item.kind === "scalar") {
-    return String(item.value);
-  }
-
-  if (item.kind === "section") {
-    return item.json();
-  }
-
-  return item.kind === "empty" ? "null" : "";
+  return refuse(keyIsSectionRefusal(key));
 }
 
 function scalarText(node: KeyedNode): string {
-  return node.kind === "scalar" ? String(node.value ?? "") : "";
-}
-
-function entryName(
-  published: PublishedKeys,
-  path: string[],
-  item: KeyedSection,
-): string {
-  for (const section of published.sections) {
-    if (section.shape === "list-entry" && section.identity !== undefined) {
-      const name = scalarText(item.get(section.identity));
-
-      if (name !== "" && "found" in findSection(published, [...path, name])) {
-        return name;
-      }
-    }
-  }
-
-  return "";
+  return node.kind === "scalar" ? renderScalar(node.value) : "";
 }
 
 export function listKeyed(
@@ -820,7 +783,7 @@ export function listKeyed(
       const path = [...prefix, name];
       const label = path.join(".");
 
-      if (name.includes(".") || name === "") {
+      if (isUnlistableName(name)) {
         skipped.push(label);
       } else if (node.kind === "section") {
         walk(node, path);
@@ -834,12 +797,7 @@ export function listKeyed(
 
   const walkList = (list: KeyedList, path: string[]): void => {
     for (const item of list.items()) {
-      if (
-        item.kind === "section" &&
-        published.subject === "policy" &&
-        path.length === 1 &&
-        path[0] === "forbid"
-      ) {
+      if (item.kind === "section" && isForbidList(published.subject, path)) {
         lines.push(`forbid=${item.json()}`);
 
         continue;
@@ -853,7 +811,9 @@ export function listKeyed(
 
       const sections = findSection(published, [
         ...path,
-        entryName(published, path, item),
+        entryNameFor(published, path, (identity) =>
+          scalarText(item.get(identity)),
+        ),
       ]);
 
       if (!("found" in sections) || sections.found.shape !== "list-entry") {
