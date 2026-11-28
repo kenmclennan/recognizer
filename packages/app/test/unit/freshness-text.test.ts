@@ -907,7 +907,7 @@ describe("freshness model counts every row, ticked or not", () => {
   const stale = (count: number) =>
     Array.from({ length: count }, (_, at) => `m${at}.py`);
 
-  it("reads an unticked out-of-date sensor as behind and offers nothing to run", () => {
+  it("reads an unticked out-of-date sensor as behind and says the ticked checks are up to date", () => {
     const ids = stale(42);
     const model = modelOf(ids, {
       sensors: [
@@ -922,7 +922,7 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(model.summary.head).toBe("Mutation is out of date on 42 files");
     expect(model.changed).toEqual([]);
     expect(model.action.primary).toEqual({
-      label: "Nothing ticked to run",
+      label: "Ticked checks are up to date",
       disabled: true,
     });
   });
@@ -936,7 +936,7 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(ticked.action.primary.label).toBe("Update 1 file");
   });
 
-  it("reads two unticked out-of-date rows as nothing to run", () => {
+  it("reads two unticked out-of-date rows as the ticked checks being up to date", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS, { "a.py": "old" }),
@@ -957,7 +957,7 @@ describe("freshness model counts every row, ticked or not", () => {
       "C.R.A.P. is out of date on 1 file; Mutation is out of date on 1 file",
     );
     expect(model.action.primary).toEqual({
-      label: "Nothing ticked to run",
+      label: "Ticked checks are up to date",
       disabled: true,
     });
   });
@@ -975,7 +975,7 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(model.summary.shape).toBe("attention");
     expect(model.summary.tone).toBe("bad");
     expect(model.summary.head).toBe("Mutation failed");
-    expect(model.action.primary.label).toBe("Nothing ticked to run");
+    expect(model.action.primary.label).toBe("Ticked checks are up to date");
     expect(model.action.primary.disabled).toBe(true);
     expect(model.action.primary).not.toHaveProperty("tick");
   });
@@ -989,7 +989,7 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(model.summary.shape).toBe("attention");
     expect(model.summary.tone).toBe("warn");
     expect(model.summary.head).toBe("Mutation has never run");
-    expect(model.action.primary.label).toBe("Nothing ticked to run");
+    expect(model.action.primary.label).toBe("Ticked checks are up to date");
     expect(model.action.primary.disabled).toBe(true);
   });
 
@@ -1299,7 +1299,7 @@ describe("the Findings panel action", () => {
   });
 });
 
-describe("the Nothing ticked to run state", () => {
+describe("the Ticked checks are up to date state", () => {
   const MUTATION_ONLY = {
     describe: true,
     analysis: true,
@@ -1321,12 +1321,12 @@ describe("the Nothing ticked to run state", () => {
     });
 
     expect(model.action.primary).toEqual({
-      label: "Nothing ticked to run",
+      label: "Ticked checks are up to date",
       disabled: true,
     });
   });
 
-  it("gives the same for every optional row unticked and out of date (issue 514)", () => {
+  it("gives the same for every optional row unticked and out of date while the analysis is ticked (issue 514)", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS, { "a.py": "old" }),
@@ -1335,6 +1335,29 @@ describe("the Nothing ticked to run state", () => {
       ticks: {
         describe: false,
         analysis: true,
+        ticked: [],
+        armed: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+    });
+
+    expect(model.action.primary).toEqual({
+      label: "Ticked checks are up to date",
+      disabled: true,
+    });
+  });
+
+  it("reads Nothing ticked to run only when no row is ticked", () => {
+    const model = modelOf(IDS, {
+      sensors: [
+        ran("crap", IDS, { "a.py": "old" }),
+        ran("mutation", IDS, { "b.py": "old" }),
+      ],
+      ticks: {
+        describe: false,
+        analysis: false,
         ticked: [],
         armed: [],
         onlyView: false,

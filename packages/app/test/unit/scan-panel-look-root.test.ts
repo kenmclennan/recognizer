@@ -1762,8 +1762,8 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.emptyCanvasRun.onlyView).toBe(true);
   });
 
-  it("runs nothing and writes no tick when the primary reads Nothing ticked to run", () => {
-    expect(f.idleButton.label).toBe("Nothing ticked to run");
+  it("runs nothing and writes no tick when the primary reads Ticked checks are up to date", () => {
+    expect(f.idleButton.label).toBe("Ticked checks are up to date");
     expect(f.idleButton.disabled).toBe(true);
     expect(f.idleButton.text).not.toMatch(/include (it|them) in the next scan/);
     expect(f.idleClick).toEqual({ ran: 0, written: 0 });
