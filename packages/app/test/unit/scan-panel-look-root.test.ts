@@ -1686,6 +1686,26 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.foldReopened.folds).toEqual([]);
   });
 
+  it("keeps an open suites fold open when a Scan rebuilds the explorer", () => {
+    const r = f.foldAcrossRebuild;
+
+    expect(r.before.chevron).toBe("true");
+    expect(r.before.suites).toBeGreaterThan(0);
+    expect(r.before.folds).toEqual(["crap"]);
+    expect(r.chevron).toBe("true");
+    expect(r.suites).toBe(r.before.suites);
+    expect(r.folds).toEqual(["crap"]);
+  });
+
+  it("keeps the expanded folders and the open inspector across the first Scan", () => {
+    const r = f.memoryAcrossFirstScan;
+
+    expect(r.before.opened.rows).toBeGreaterThan(r.before.rows);
+    expect(r.before.opened.inspector).toBe(true);
+    expect(r.rows).toBe(r.before.opened.rows);
+    expect(r.inspector).toBe(true);
+  });
+
   it("keeps the fold open on a second Scan that updates the explorer in place (non-gating)", () => {
     expect(f.foldSecondScan.chevron).toBe("true");
   });
