@@ -22,14 +22,17 @@ export const IO_TIMER_MEMBERS: readonly string[] = [
   "wait",
 ];
 
-export const IO_OTHER_MEMBERS: readonly string[] = [
-  "scope",
-  "readStdin",
-  "readLine",
+export const IO_PROCESS_MEMBERS: readonly string[] = [
   "run",
   "runAsync",
   "launch",
   "request",
+];
+
+export const IO_OTHER_MEMBERS: readonly string[] = [
+  "scope",
+  "readStdin",
+  "readLine",
   "env",
   "pid",
   "pidAlive",

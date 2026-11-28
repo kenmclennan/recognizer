@@ -2,9 +2,11 @@ export interface IoMembersInput {
   keys: readonly string[];
   files: readonly string[];
   timers: readonly string[];
+  processes: readonly string[];
   other: readonly string[];
   filesCovered: ReadonlySet<string>;
   timersCovered: ReadonlySet<string>;
+  processesCovered: ReadonlySet<string>;
 }
 
 export interface IoMembersReport {
@@ -14,7 +16,12 @@ export interface IoMembersReport {
 }
 
 export function checkIoMembers(input: IoMembersInput): IoMembersReport {
-  const listed = [...input.files, ...input.timers, ...input.other];
+  const listed = [
+    ...input.files,
+    ...input.timers,
+    ...input.processes,
+    ...input.other,
+  ];
   const real = new Set(input.keys);
 
   return {
@@ -23,6 +30,7 @@ export function checkIoMembers(input: IoMembersInput): IoMembersReport {
     uncovered: [
       ...input.files.filter((name) => !input.filesCovered.has(name)),
       ...input.timers.filter((name) => !input.timersCovered.has(name)),
+      ...input.processes.filter((name) => !input.processesCovered.has(name)),
     ],
   };
 }
