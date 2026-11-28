@@ -18,6 +18,19 @@ function missing(path: string): Error {
   );
 }
 
+function notDirectory(path: string): Error {
+  return Object.assign(new Error(`ENOTDIR: not a directory, '${path}'`), {
+    code: "ENOTDIR",
+  });
+}
+
+function isDirectoryError(path: string): Error {
+  return Object.assign(
+    new Error(`EISDIR: illegal operation on a directory, '${path}'`),
+    { code: "EISDIR" },
+  );
+}
+
 export class FakeFiles {
   private readonly files = new Map<string, Entry>();
   private readonly directories = new Set<string>(["/"]);
@@ -28,16 +41,43 @@ export class FakeFiles {
     let current = path;
 
     while (!this.directories.has(current)) {
-      this.directories.add(current);
+      if (this.files.has(current)) {
+        throw notDirectory(current);
+      }
+
       current = dirname(current);
+    }
+
+    for (let next = path; next !== current; next = dirname(next)) {
+      this.directories.add(next);
+    }
+  }
+
+  private requireParent(path: string): void {
+    const parent = dirname(path);
+
+    if (!this.directories.has(parent)) {
+      throw missing(path);
     }
   }
 
   private put(path: string, bytes: Buffer, mode?: number): void {
+    if (this.directories.has(path)) {
+      throw isDirectoryError(path);
+    }
+
     this.ensureDirectory(dirname(path));
     this.version += 1;
-    this.files.set(path, { bytes, mode, version: this.version });
+    this.files.set(path, {
+      bytes,
+      mode: mode ?? this.files.get(path)?.mode,
+      version: this.version,
+    });
   }
+
+  makeDirectory = (path: string): void => {
+    this.ensureDirectory(path);
+  };
 
   seedFrom(directory: string, into: string = directory): void {
     this.ensureDirectory(into);
@@ -98,13 +138,49 @@ export class FakeFiles {
   rename = (from: string, to: string): void => {
     const found = this.files.get(from);
 
-    if (found === undefined) {
+    if (found === undefined && !this.directories.has(from)) {
       throw missing(from);
+    }
+
+    this.requireParent(to);
+
+    if (found === undefined) {
+      this.renameDirectory(from, to);
+
+      return;
+    }
+
+    if (this.directories.has(to)) {
+      throw isDirectoryError(to);
     }
 
     this.files.delete(from);
     this.put(to, found.bytes, found.mode);
   };
+
+  private renameDirectory(from: string, to: string): void {
+    if (this.files.has(to)) {
+      throw notDirectory(to);
+    }
+
+    const prefix = `${from}/`;
+
+    this.directories.add(to);
+
+    for (const directory of [...this.directories]) {
+      if (directory.startsWith(prefix)) {
+        this.directories.add(`${to}/${directory.slice(prefix.length)}`);
+      }
+    }
+
+    for (const [file, entry] of [...this.files]) {
+      if (file.startsWith(prefix)) {
+        this.files.set(`${to}/${file.slice(prefix.length)}`, entry);
+      }
+    }
+
+    this.removeDir(from);
+  }
 
   readDir = (path: string): DirEntry[] => {
     if (!this.directories.has(path)) {
@@ -135,6 +211,10 @@ export class FakeFiles {
   };
 
   remove = (path: string): void => {
+    if (this.directories.has(path)) {
+      throw isDirectoryError(path);
+    }
+
     this.files.delete(path);
   };
 
@@ -171,7 +251,7 @@ export class FakeFiles {
   };
 
   createExclusive = (path: string, content: string): boolean => {
-    if (this.files.has(path)) {
+    if (this.files.has(path) || this.directories.has(path)) {
       return false;
     }
 
@@ -182,6 +262,8 @@ export class FakeFiles {
 
   append = (path: string, content: string): void => {
     const found = this.files.get(path);
+
+    this.requireParent(path);
 
     this.put(
       path,
