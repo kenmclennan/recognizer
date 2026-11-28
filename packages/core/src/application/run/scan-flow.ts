@@ -249,12 +249,15 @@ export function* scanFlow(
     }
 
     const { repository, missing } = extracted;
-    const later = phases.findReadinessGaps({
-      root,
-      commit,
-      sensors: ticked,
-      limits,
-    });
+    const later = [
+      ...phases.findLanguageGaps(detected),
+      ...phases.findReadinessGaps({
+        root,
+        commit,
+        sensors: ticked,
+        limits,
+      }),
+    ];
 
     if (later.length > 0) {
       return refuse(later);

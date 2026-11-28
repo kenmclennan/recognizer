@@ -417,6 +417,7 @@ describe("the look root", () => {
     let delivered = null as unknown as { before: number; after: number };
     let planGaps = null as unknown as GapFacts;
     let startGaps = null as unknown as GapFacts;
+    let noScanner = null as unknown as { sent: boolean; text: string };
 
     beforeAll(async () => {
       const { produced: _held, ...marked } = await lookRoot(unregisteredAfter);
@@ -549,6 +550,63 @@ describe("the look root", () => {
         "look-root-start-gaps",
       );
 
+      const { produced: _noScanner, ...noScannerRecording } = await lookRoot({
+        ticks: { ticked: [] },
+        stages: [
+          {
+            name: "refused",
+            run: async (root) => {
+              const clear = (folder: string): void => {
+                for (const entry of root.io.files.readDir(folder)) {
+                  const path = `${folder}/${entry.name}`;
+
+                  if (entry.kind === "directory") {
+                    if (entry.name !== ".git") {
+                      clear(path);
+                    }
+                  } else if (entry.name.endsWith(".ts")) {
+                    root.io.files.remove(path);
+                  }
+                }
+              };
+
+              clear(root.repository);
+
+              const host = await untilHolds(
+                root.service,
+                () => root.view.explorer()?.host,
+              );
+
+              host.run(null);
+
+              await untilHolds(root.service, () =>
+                root.service.started.length > 0 ? true : undefined,
+              );
+
+              for (let i = 0; i < 20; i += 1) {
+                await root.service.signal(50);
+              }
+            },
+          },
+        ],
+      });
+
+      noScanner = await collectFacts(
+        pageHarness(
+          noScannerRecording,
+          `const refusedStart = recording.commands.filter((one) => one.command === "core_call" && one.args.op === "scan.start").at(-1).reply;
+  const drawn = await drawRecording(host, recording, {
+    answer: (command, args) => command === "core_call" && args.op === "scan.start" ? refusedStart : undefined,
+  });
+  click(host.querySelector(".rail-scan"));
+  for (let i = 0; i < 40; i += 1) await tick();
+  facts.sent = drawn.sent().some((one) => one.command === "core_call" && one.args.op === "scan.start");
+  facts.text = document.querySelector(".window").textContent;
+  drawn.dispose();`,
+        ),
+        "look-root-no-scanner",
+      );
+
       const { produced: _produced, ...recording } = await lookRoot({
         answers: { "nonesuch.op": { ok: 7 } },
       });
@@ -602,6 +660,15 @@ describe("the look root", () => {
       expect(startGaps.text).toContain("crap needs coverage");
       expect(startGaps.text).not.toContain('{"kind"');
       expect(startGaps.text).not.toContain('"gaps":');
+    });
+
+    it("a scan no installed scanner can read shows a refusal and never Scan complete", () => {
+      expect(noScanner.sent).toBe(true);
+      expect(noScanner.text).toContain("Scan refused");
+      expect(noScanner.text).toContain(
+        "no installed scanner reads this repository's files",
+      );
+      expect(noScanner.text).not.toContain("Scan complete");
     });
 
     it("a declared answer is served after the first draw", () => {

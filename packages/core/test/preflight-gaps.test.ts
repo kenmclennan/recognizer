@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findDescriberGaps } from "../src/application/describing/find-describer-gaps.js";
+import { findLanguageGaps } from "../src/application/scanning/find-language-gaps.js";
 import { findCommitGaps } from "../src/application/sensing/find-commit-gaps.js";
 import { findProgramGaps } from "../src/application/sensing/find-program-gaps.js";
 import { findReadinessGaps } from "../src/application/sensing/find-readiness-gaps.js";
@@ -418,5 +419,28 @@ describe("describer gaps", () => {
         },
       },
     ]);
+  });
+});
+
+describe("language gap", () => {
+  it("is one gap with the scanner need and an outside fix for an empty list", () => {
+    expect(findLanguageGaps([])).toEqual([
+      {
+        id: "scanners:none-claims-files",
+        line: "no installed scanner reads this repository's files",
+        needs: ["scanner"],
+        fix: {
+          text: "run recognizer plugins to see what is installed; the README says how to get the official scanners",
+          command: null,
+          cwd: "",
+          env: {},
+          kind: "outside",
+        },
+      },
+    ]);
+  });
+
+  it("is none when a language was detected", () => {
+    expect(findLanguageGaps(["python"])).toEqual([]);
   });
 });

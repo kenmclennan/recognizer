@@ -27,6 +27,7 @@ import {
   sensorProgram,
   serveRoot,
   shippedSensor,
+  typescriptScanner,
   typescriptScenario,
 } from "./support/index.js";
 
@@ -968,7 +969,10 @@ describe("the service built in process", () => {
 
     try {
       const root = serveRoot({
-        programs: { "recognizer-sense-crap": sensorProgram("crap") },
+        programs: {
+          "recognizer-scan-typescript": typescriptScanner(),
+          "recognizer-sense-crap": sensorProgram("crap"),
+        },
       });
       const repository = "/repo";
 

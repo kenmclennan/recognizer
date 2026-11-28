@@ -169,8 +169,10 @@ describe("recognizer scan: scanner choice", () => {
       scanners: { [PYTHON]: okPython },
     });
 
-    expect(code).toBe(0);
+    expect(err).not.toBe("");
+    expect(code).toBe(4);
     expect(err).toContain("no languages detected");
+    expect(err).toContain("no installed scanner reads this repository's files");
     expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
   });
 
@@ -180,10 +182,12 @@ describe("recognizer scan: scanner choice", () => {
       scanners: {},
     });
 
-    expect(code).toBe(0);
-    expect(err).toBe(
+    expect(err).not.toBe("");
+    expect(code).toBe(4);
+    expect(err).toContain(
       "no scanner is installed: recognizer plugins lists what is installed\nno languages detected\n",
     );
+    expect(err).toContain("no installed scanner reads this repository's files");
   });
 
   it("scans a language no installed scanner knows with the scanner that claims it", async () => {
@@ -530,12 +534,12 @@ describe("recognizer scan: stale files", () => {
     expect(fake.files.has(KT_CACHE)).toBe(false);
   });
 
-  it("exits 0 with no languages, creates no directory and still removes stale files", async () => {
+  it("exits 4 with no languages, creates no directory and still removes stale files", async () => {
     const { fake, code, err } = await scan({
       files: { [`${ROOT}/readme.md`]: "", [PY_CACHE]: "old" },
     });
 
-    expect(code).toBe(0);
+    expect(code).toBe(4);
     expect(err).toContain("no languages detected\n");
     expect(fake.writes).toEqual([]);
     expect(fake.removed).toEqual([PY_CACHE]);
