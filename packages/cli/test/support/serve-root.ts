@@ -34,6 +34,21 @@ const STEP_MS = 50;
 const REAL_YIELD_MS = 5;
 const REAL_CEILING_MS = 30_000;
 
+export const SENT_SIGNALS: string[] = [];
+
+export function inertSignals(
+  sent: string[],
+): NonNullable<ServiceOptions["signals"]> {
+  return {
+    signal: (pid, group, name) => {
+      sent.push(`${name} ${group ? -pid : pid}`);
+    },
+    later: (ms, action) => {
+      setTimeout(action, ms);
+    },
+  };
+}
+
 export async function settle(): Promise<void> {
   for (let turn = 0; turn < 8; turn += 1) {
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -56,7 +71,7 @@ export function serveRoot(options: ServeRootOptions = {}): ServeRoot {
     base: () => io,
     scoped: (scope) => io.withScope(scope),
     polls: options.polls,
-    signals: options.signals,
+    signals: options.signals ?? inertSignals(SENT_SIGNALS),
     backstopMs: options.backstopMs,
     adapters: {
       scratch: new FakeScratch(),
