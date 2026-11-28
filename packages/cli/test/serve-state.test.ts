@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -6,6 +7,7 @@ import {
   FakeRepositories,
   Gate,
   type Line,
+  type Program,
   REPOSITORY,
   type ServeRoot,
   sensorProgram,
@@ -369,6 +371,39 @@ describe("serve repository state", () => {
     ).toBe(true);
 
     await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("repository_state_carries_a_sensors_published_principles", async () => {
+    const example = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/sensor-crap.json"),
+        "utf8",
+      ),
+    ) as { principles: unknown[] };
+    const bare: Program = (call) => {
+      const made = sensorProgram("bare")(call) as { stdout: string };
+
+      if (call.args[0] !== "manifest") {
+        return made;
+      }
+
+      const { principles: _dropped, ...rest } = JSON.parse(made.stdout);
+
+      return { ...made, stdout: JSON.stringify(rest) };
+    };
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap"],
+      programs: { "recognizer-sense-bare": bare },
+      registered: ["crap", "bare"],
+    });
+    const state = (await root.call("repository.state", { repository })).ok;
+    const manifestOf = (name: string) =>
+      state.registry.entries.find((one: Line) => one.name === name)?.manifest;
+
+    expect(example.principles.length).toBeGreaterThan(0);
+    expect(manifestOf("crap").principles).toEqual(example.principles);
+    expect(Object.keys(manifestOf("bare"))).not.toContain("principles");
     await root.close();
   });
 

@@ -232,6 +232,9 @@ export function installedSensorsOf(state: RepositoryState): InstalledSensors {
       metrics: [...(facts.metrics ?? [])] as InstalledMetric[],
       findings: [...(facts.findings ?? [])] as InstalledSensor["findings"],
       settings: [...(facts.settings ?? [])] as InstalledSetting[],
+      ...(facts.principles === undefined
+        ? {}
+        : { principles: [...facts.principles] }),
     });
   }
 

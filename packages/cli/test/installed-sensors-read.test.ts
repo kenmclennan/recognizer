@@ -80,6 +80,32 @@ describe("readInstalledSensors", () => {
     ).toEqual(["complexity"]);
   });
 
+  it("carries_published_principles_and_omits_them_when_absent", () => {
+    const sensors = readExamples().sensors;
+    const crap = sensors.find((one) => one.name === "crap");
+    const published = exampleManifest("crap").principles;
+
+    expect(published?.length).toBeGreaterThan(0);
+    expect(crap?.principles).toEqual(published);
+
+    const mutation = sensors.find((one) => one.name === "mutation");
+
+    expect(mutation?.principles).toEqual(
+      exampleManifest("mutation").principles,
+    );
+
+    const bare = { ...exampleManifest("crap") };
+
+    delete bare.principles;
+
+    const read = readInstalledSensors(examplePorts(["crap"]), ["crap"], () => ({
+      ok: true,
+      manifest: bare,
+    }));
+
+    expect(Object.keys(read.sensors[0] ?? {})).not.toContain("principles");
+  });
+
   it("names the unreadable sensor with its reason and keeps the others", () => {
     const read = readExamples(["mutation"]);
 

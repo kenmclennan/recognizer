@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { InstalledPlugin } from "../../src/domain/plugins/installed-plugin.js";
 import type { PluginKind } from "../../src/domain/plugins/manifest.js";
-import { publishedPrinciplesOf } from "../../src/domain/plugins/published-principles.js";
+import {
+  mergePublishedPrinciples,
+  publishedPrinciplesOf,
+} from "../../src/domain/plugins/published-principles.js";
 import type { Principle } from "../../src/domain/principles.js";
 
 function plugin(
@@ -64,5 +67,19 @@ describe("publishedPrinciplesOf", () => {
     ]);
 
     expect(found).toEqual([first, second, third]);
+  });
+});
+
+describe("mergePublishedPrinciples", () => {
+  it("merges_named_sources_in_name_order", () => {
+    const later = { id: "one", name: "Later One" };
+    const found = mergePublishedPrinciples([
+      { name: "zeta", principles: [later, third] },
+      { name: "bare" },
+      { name: "alpha", principles: [first, second] },
+    ]);
+
+    expect(found).toEqual([first, second, third]);
+    expect(found.filter((one) => one.id === "one")).toHaveLength(1);
   });
 });

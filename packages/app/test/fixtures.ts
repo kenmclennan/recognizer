@@ -341,6 +341,7 @@ export function installedSensor(name: string): InstalledSensor {
     metrics: rest.metrics,
     findings: rest.findings,
     settings: rest.settings,
+    ...(rest.principles === undefined ? {} : { principles: rest.principles }),
   };
 }
 

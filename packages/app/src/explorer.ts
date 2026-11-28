@@ -10,6 +10,7 @@ import {
   type DescribeAsk,
   type DescribeHalt,
   findingsHeader,
+  mergePublishedPrinciples,
   Neighbours,
   Repository,
   unionScans,
@@ -452,7 +453,7 @@ export function showExplorer(
 ): Explorer {
   let loaded = initial;
   const remembered = carried?.view;
-  let health = computeHealth(loaded);
+  let health = computeHealth(loaded, []);
   const knownModules = new Set(loaded.modules);
   const compaction = compactFolders(loaded.repository.folders);
   const root = buildTree(loaded.modules, compaction);
@@ -635,6 +636,20 @@ export function showExplorer(
   let canvasNotesKey = "";
   let allFindings = findingRows(health.documents);
   let hiddenRows = findingRows(health.hidden);
+
+  function publishedPrinciples() {
+    return installedSensors?.status === "ok"
+      ? mergePublishedPrinciples(installedSensors.sensors)
+      : [];
+  }
+
+  function refreshHealth() {
+    health = computeHealth(loaded, publishedPrinciples());
+    described = describeTree(root, health);
+    allFindings = findingRows(health.documents);
+    hiddenRows = findingRows(health.hidden);
+  }
+
   let orientedFinding: string | null = remembered?.findings.oriented ?? null;
   const openGroups = new Set<string>(remembered?.findings.openGroups ?? []);
   let findingsOnlyView = remembered?.findings.onlyThisView ?? false;
@@ -3028,6 +3043,7 @@ export function showExplorer(
     }
 
     catalog = buildCatalog(installedSensors);
+    refreshHealth();
 
     overlayModel = buildOverlayModel(loaded.overlays ?? [], {
       sensors: loaded.sensors,
@@ -5550,15 +5566,12 @@ export function showExplorer(
       loaded = next;
       freshnessCache = null;
       overlaysCache = null;
-      health = computeHealth(loaded);
-      described = describeTree(root, health);
+      refreshHealth();
       overlayModel = buildOverlayModel(loaded.overlays ?? [], {
         sensors: loaded.sensors,
         installed: installedSensors,
         unreadable: loaded.overlaysUnreadable ?? [],
       });
-      allFindings = findingRows(health.documents);
-      hiddenRows = findingRows(health.hidden);
       metricTicks = pruneTicks(metricTicks, overlayModel.metrics);
       postConditions();
       render();

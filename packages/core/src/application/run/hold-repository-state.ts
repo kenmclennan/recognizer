@@ -125,6 +125,9 @@ function factsOf(read: InstalledRead): InstalledFacts {
       metrics: sensor.metrics,
       findings: sensor.findings,
       settings: sensor.settings,
+      ...(sensor.principles === undefined
+        ? {}
+        : { principles: sensor.principles }),
     });
   }
 
