@@ -54,6 +54,7 @@ jobs:
       LC_MAX_AGENTS: "4"
       CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
       CARGO_BUILD_JOBS: "3"
+      RECOGNIZER_SIGTERM_SNAPSHOT_DIR: ${{ github.workspace }}/sigterm-snapshots
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -76,3 +77,11 @@ jobs:
 
       - name: Run graph-layout tests
         run: node tools/scripts/signal-witness.mjs npm run test:layout -w @recognizer/app
+
+      - name: Upload SIGTERM snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigterm-snapshots
+          path: sigterm-snapshots
+          if-no-files-found: ignore

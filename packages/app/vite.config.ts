@@ -45,7 +45,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
+          setupFiles: [
+            "../../tools/scripts/vitest-remove-temp-dirs.mjs",
+            "../../tools/scripts/vitest-sigterm-snapshot.mjs",
+          ],
           include: unitInclude,
           exclude: [...configDefaults.exclude, ...layout, ...endToEnd],
         },
@@ -54,7 +57,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: "e2e",
-          setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
+          setupFiles: [
+            "../../tools/scripts/vitest-remove-temp-dirs.mjs",
+            "../../tools/scripts/vitest-sigterm-snapshot.mjs",
+          ],
           include: endToEnd,
           exclude: [...configDefaults.exclude, ...layout, ...endToEndService],
         },
@@ -69,6 +75,7 @@ export default defineConfig({
           globalSetup: ["../../tools/scripts/service-scratch-setup.mjs"],
           setupFiles: [
             "../../tools/scripts/service-scratch-worker.mjs",
+            "../../tools/scripts/vitest-sigterm-snapshot.mjs",
             "./test/end-to-end/shared-service-close.setup.ts",
           ],
           include: endToEndService,
