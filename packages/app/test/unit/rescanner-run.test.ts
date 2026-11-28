@@ -1468,4 +1468,60 @@ describe("createRescanner", () => {
       gate.open();
     });
   });
+
+  describe("when the plan call is unavailable", () => {
+    const GAP = {
+      id: "crap",
+      line: "crap needs coverage",
+      needs: ["coverage"],
+    };
+
+    it("ends a gaps reply with the refusal wording and never starts the scan", async () => {
+      const replies: Record<string, unknown> = {};
+      const { root, host } = await begin({ alpha: {} }, { replies });
+      const before = root.service.started.length;
+
+      replies["scan.plan"] = { unavailable: { kind: "gaps", gaps: [GAP] } };
+      host.run(null);
+      await reaches(root, postedText(root, /^Scan refused/));
+
+      const texts = root.view.tray.posted.map((one) => one.input.text);
+
+      expect(texts.length).toBeGreaterThan(0);
+      expect(texts).toContain("Scan refused - 1 problem: crap needs coverage");
+      expect(root.service.started).toHaveLength(before);
+      expect(texts.filter((text) => text.includes('{"kind"'))).toEqual([]);
+    });
+
+    it("ends a missing reply with the hint", async () => {
+      const replies: Record<string, unknown> = {};
+      const { root, host } = await begin({ alpha: {} }, { replies });
+
+      replies["scan.plan"] = {
+        unavailable: { kind: "missing", hint: "install recognizer" },
+      };
+      host.run(null);
+      await reaches(root, postedText(root, /^Scan failed/));
+
+      const texts = root.view.tray.posted.map((one) => one.input.text);
+
+      expect(texts).toContain("Scan failed - install recognizer");
+      expect(texts.filter((text) => text.includes('{"kind"'))).toEqual([]);
+    });
+
+    it("reports a plain plan error as before", async () => {
+      const rejects: Record<string, string> = {};
+      const { root, host } = await begin({ alpha: {} }, { rejects });
+
+      rejects["scan.plan"] = "boom";
+      host.run(null);
+      await reaches(root, postedText(root, /boom/));
+
+      expect(
+        root.view.tray.posted.filter((one) =>
+          /^Scan refused/.test(one.input.text),
+        ),
+      ).toEqual([]);
+    });
+  });
 });

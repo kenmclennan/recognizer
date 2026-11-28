@@ -58,9 +58,22 @@ export type ScanSourceDeps = {
   repository: () => string;
 };
 
+export function unavailableText(unavailable: Unavailable): string {
+  switch (unavailable.kind) {
+    case "missing":
+      return unavailable.hint;
+    case "gaps":
+      return unavailable.gaps.map((gap) => gap.line).join("; ");
+    case "refused":
+      return unavailable.reason;
+    case "exited":
+      return `${unavailable.status}\n${unavailable.stderr}`.trim();
+  }
+}
+
 export class CoreUnavailable extends Error {
   constructor(readonly unavailable: Unavailable) {
-    super(JSON.stringify(unavailable));
+    super(unavailableText(unavailable));
   }
 }
 

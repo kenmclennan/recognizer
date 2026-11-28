@@ -97,6 +97,25 @@ const unregisteredAfter = {
   ],
 };
 
+type GapFacts = { reached: boolean; text: string };
+
+const gapsDraw = (
+  op: string,
+) => `const GAP = { id: "crap", line: "crap needs coverage", needs: ["coverage"] };
+  const drawn = await drawRecording(host, recording, {
+    answer: (command, args) =>
+      command === "core_call" && args.op === ${JSON.stringify(op)} && (args.op !== "scan.plan" || args.args.mode === "rescan")
+        ? { unavailable: { kind: "gaps", gaps: [GAP] } }
+        : undefined,
+  });
+  await tick();
+  const bridge = window.__lookBridge;
+  for (const id of bridge.listening.get("rescan") ?? []) bridge.callbacks.get(id)?.({ event: "rescan", id, payload: null });
+  for (let i = 0; i < 8; i += 1) await tick();
+  facts.reached = drawn.sent().some((one) => one.command === "core_call" && one.args.op === ${JSON.stringify(op)} && (one.args.op !== "scan.plan" || one.args.args.mode === "rescan"));
+  facts.text = document.querySelector(".window").textContent;
+  drawn.dispose();`;
+
 function pageHarness(recording: unknown, body: string): string {
   return `${SHAPE}
 import { drawRecording } from ${JSON.stringify(here("../test/look-draw.ts"))};
@@ -396,6 +415,8 @@ describe("the look root", () => {
     let gated = null as unknown as { before: number; after: number };
     let readBack = null as unknown as { commands: string[] };
     let delivered = null as unknown as { before: number; after: number };
+    let planGaps = null as unknown as GapFacts;
+    let startGaps = null as unknown as GapFacts;
 
     beforeAll(async () => {
       const { produced: _held, ...marked } = await lookRoot(unregisteredAfter);
@@ -514,6 +535,20 @@ describe("the look root", () => {
         ),
         "look-root-later",
       );
+      const { produced: _planGaps, ...planGapsRecording } = await lookRoot();
+
+      planGaps = await collectFacts(
+        pageHarness(planGapsRecording, gapsDraw("scan.plan")),
+        "look-root-plan-gaps",
+      );
+
+      const { produced: _startGaps, ...startGapsRecording } = await lookRoot();
+
+      startGaps = await collectFacts(
+        pageHarness(startGapsRecording, gapsDraw("scan.start")),
+        "look-root-start-gaps",
+      );
+
       const { produced: _produced, ...recording } = await lookRoot({
         answers: { "nonesuch.op": { ok: 7 } },
       });
@@ -553,6 +588,20 @@ describe("the look root", () => {
     it("a command with no recorded answer fails naming the command", () => {
       expect(facts.refused).toContain("nonesuch");
       expect(facts.refused).toContain('{"a":1}');
+    });
+
+    it("a gaps reply to the plan call shows the gap line and no JSON", () => {
+      expect(planGaps.reached).toBe(true);
+      expect(planGaps.text).toContain("crap needs coverage");
+      expect(planGaps.text).not.toContain('{"kind"');
+      expect(planGaps.text).not.toContain('"gaps":');
+    });
+
+    it("a gaps reply to the start call shows the gap line and no JSON", () => {
+      expect(startGaps.reached).toBe(true);
+      expect(startGaps.text).toContain("crap needs coverage");
+      expect(startGaps.text).not.toContain('{"kind"');
+      expect(startGaps.text).not.toContain('"gaps":');
     });
 
     it("a declared answer is served after the first draw", () => {

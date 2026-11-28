@@ -34,6 +34,7 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { isActive as isRunActive, type RunInput } from "./scan-run-model";
+import { CoreUnavailable, unavailableResult } from "./scan-source";
 
 export type Registered = {
   sensors: Pick<
@@ -831,6 +832,65 @@ export function createRescanner<Carried>(
     }
   }
 
+  async function endRefused(result: ScanRunResult): Promise<boolean> {
+    if (result.status === "gaps") {
+      resetProgress();
+      emit({ scanning: null });
+      const refusal = refusedText(result.gaps);
+
+      ports.post({ kind: "warning", text: `Scan refused - ${refusal}` });
+      await openRefused(refusal);
+      ports.settled();
+
+      return true;
+    }
+
+    const text = failureText(result);
+
+    if (text === null) {
+      return false;
+    }
+
+    resetProgress();
+    emit({ scanning: null });
+    ports.post({
+      kind: result.status === "refused" ? "warning" : "error",
+      text: `Scan ${result.status === "refused" ? "refused" : "failed"} - ${text}`,
+    });
+    await openFromCache();
+    ports.blocked(text);
+    ports.settled();
+
+    return true;
+  }
+
+  async function planIntent(
+    modules: string[] | null,
+    effective: ReturnType<typeof effectiveTicks>,
+  ) {
+    try {
+      return (
+        await ports.port.plan({
+          repository: ".",
+          mode: "rescan",
+          ticks: effective,
+          scope: modules,
+          changed: [],
+        })
+      ).intent;
+    } catch (error) {
+      if (error instanceof CoreUnavailable) {
+        const result = unavailableResult(error.unavailable);
+
+        if (await endRefused(result)) {
+          return null;
+        }
+      }
+
+      throw error;
+    }
+  }
+
   async function executeScan(modules: string[] | null, planned?: PlannedRun) {
     attachedToOther = false;
 
@@ -845,17 +905,12 @@ export function createRescanner<Carried>(
       registered.sensors,
       registered.describerRegistered,
     );
-    const intent =
-      planned?.plan ??
-      (
-        await ports.port.plan({
-          repository: ".",
-          mode: "rescan",
-          ticks: effective,
-          scope: modules,
-          changed: [],
-        })
-      ).intent;
+    const intent = planned?.plan ?? (await planIntent(modules, effective));
+
+    if (intent === null) {
+      return;
+    }
+
     const plan = onlyArmed(
       { ...intent, ...(planned === undefined ? { describeAll: false } : {}) },
       effective.armed,
@@ -967,31 +1022,7 @@ export function createRescanner<Carried>(
       starting = null;
     }
 
-    if (result.status === "gaps") {
-      resetProgress();
-      emit({ scanning: null });
-      const refusal = refusedText(result.gaps);
-
-      ports.post({ kind: "warning", text: `Scan refused - ${refusal}` });
-      await openRefused(refusal);
-      ports.settled();
-
-      return;
-    }
-
-    const text = failureText(result);
-
-    if (text !== null) {
-      resetProgress();
-      emit({ scanning: null });
-      ports.post({
-        kind: result.status === "refused" ? "warning" : "error",
-        text: `Scan ${result.status === "refused" ? "refused" : "failed"} - ${text}`,
-      });
-      await openFromCache();
-      ports.blocked(text);
-      ports.settled();
-
+    if (await endRefused(result)) {
       return;
     }
 
