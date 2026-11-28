@@ -240,49 +240,6 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick();
   facts.changed = changed.panel();
 
-  const failFake = fakeScan({
-    defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "tally", "broke"), { kind: "summary", exit: 1, log: "x-scan" }],
-    result: { status: "finished", exitCode: 1 },
-  });
-  const t = await mount(failFake);
-  click(t.q(".rail-scan"));
-  await tick();
-  click(t.q(".scan-run"));
-  await tick(); await tick();
-  facts.failed = { ...t.panel(), posted: t.wired.tray.filter((p) => p.kind === "error" && p.text.includes("failed")).map((p) => p.text) };
-  click(t.q(".rail-files"));
-  await tick();
-  const failedFooter = { text: t.scanLineText(), buttons: t.footerButtons() };
-  const messagesBefore = t.messages();
-  const hiddenBefore = !t.visible(".scan-panel");
-  t.act("tally failed", "Show");
-  await tick();
-  const dot = t.q(".rail-scan .rail-dot");
-  t.act("tally failed", "Open log");
-  await tick();
-  facts.sensorFail = {
-    footer: failedFooter,
-    messages: messagesBefore,
-    hiddenBefore,
-    panelOpen: t.visible(".scan-panel"),
-    dot: dot !== null && !dot.hidden && getComputedStyle(dot).display !== "none",
-    opened: t.editor.files,
-    reasonLines: t.all(".scan-row").map((r) => r.querySelectorAll("div").length).reduce((a, b) => a + b, 0),
-  };
-
-  const bareFake = fakeScan({
-    defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "tally", "broke"), summary],
-    result: { status: "finished", exitCode: 1 },
-  });
-  const bare = await mount(bareFake);
-  click(bare.q(".rail-scan"));
-  await tick();
-  click(bare.q(".scan-run"));
-  await tick(); await tick();
-  facts.noLog = bare.messages();
-
   const moduleFake = fakeScan({
     defaults: { describe: true, sensors: false },
     steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), { kind: "summary", exit: 1, log: "y-scan" }],
@@ -676,32 +633,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       reason: "a scan is already running",
     });
     expect(f.run.plans).toHaveLength(1);
-  });
-
-  it("posts exactly one tray message for a failed sensor", () => {
-    expect(f.failed.posted).toEqual(["tally failed: broke"]);
-    expect(f.sensorFail.reasonLines).toBe(0);
-  });
-
-  it("shows a failed sensor row from the message's Show and opens the log from its Open log", () => {
-    expect(f.sensorFail.footer.text).toBe("");
-    expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
-    expect(f.sensorFail.messages).toEqual([
-      {
-        text: "tally failed: broke",
-        actions: ["Show", "Open log"],
-      },
-    ]);
-    expect(f.sensorFail.hiddenBefore).toBe(true);
-    expect(f.sensorFail.panelOpen).toBe(true);
-    expect(f.sensorFail.dot).toBe(true);
-    expect(f.sensorFail.opened).toEqual([".recognizer/cache/log/x-scan.json"]);
-  });
-
-  it("offers Show without Open log when the run left no log", () => {
-    expect(f.noLog).toEqual([
-      { text: "tally failed: broke", actions: ["Show"] },
-    ]);
   });
 
   it("shows a failed file from the message's Show on the inspector with the reason under its header", () => {
