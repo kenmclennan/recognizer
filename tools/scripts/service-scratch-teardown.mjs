@@ -30,11 +30,20 @@ function psListing() {
   return result.stdout;
 }
 
+const VITEST_WORKER = /\/node_modules\/vitest\/dist\/workers\//;
+
+function isVitestWorker(line) {
+  const at = line.search(/\s[A-Z_][A-Z0-9_]*=/);
+
+  return VITEST_WORKER.test(at === -1 ? line : line.slice(0, at));
+}
+
 export function writersIn(scratch, listing = psListing()) {
   const marker = `TMPDIR=${scratch}`;
 
   return listing
     .split("\n")
+    .filter((line) => !isVitestWorker(line))
     .filter((line) => {
       const at = line.indexOf(marker);
 

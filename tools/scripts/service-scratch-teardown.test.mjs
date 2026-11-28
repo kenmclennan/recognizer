@@ -194,6 +194,15 @@ describe("writersIn", () => {
     expect(writersIn("/s/a", listing)).toEqual([101, 104, 105]);
   });
 
+  it("never returns a vitest worker, even one whose environment carries the folder", () => {
+    const withWorker = [
+      "201 /usr/bin/node /r/node_modules/vitest/dist/workers/forks.js A=1 TMPDIR=/s/a B=2",
+      "202 /usr/bin/node /r/svc/bin.js VITEST_WORKER_ID=1 TMPDIR=/s/a/serve-tmp-x",
+    ].join("\n");
+
+    expect(writersIn("/s/a", withWorker)).toEqual([202]);
+  });
+
   it("returns nothing for an empty listing", () => {
     expect(writersIn("/s/a", "")).toEqual([]);
   });
